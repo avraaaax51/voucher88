@@ -8,6 +8,7 @@ import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Badge } from "../components/ui/badge";
 import { Card, CardContent } from "../components/ui/card";
+import { Checkbox } from "../components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -45,6 +46,8 @@ const VoucherManagement = () => {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [sort, setSort] = useState({ key: "created_at", dir: "desc" });
+  const [selected, setSelected] = useState([]);
+  const [bulkPrintList, setBulkPrintList] = useState(null);
   const [selectedVoucher, setSelectedVoucher] = useState(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const printRef = useRef(null);
@@ -148,11 +151,43 @@ const VoucherManagement = () => {
   };
 
   const handlePrint = (voucher) => {
+    setBulkPrintList(null);
     setSelectedVoucher(voucher);
     setTimeout(() => {
       window.print();
       markPrinted([voucher.code]);
     }, 300);
+  };
+
+  const toggleSelect = (id) =>
+    setSelected((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  const allSelected = filteredVouchers.length > 0 && filteredVouchers.every((v) => selected.includes(v._id));
+  const toggleSelectAll = () =>
+    setSelected(allSelected ? [] : filteredVouchers.map((v) => v._id));
+  const selectedVouchers = vouchers.filter((v) => selected.includes(v._id));
+
+  const handleBulkPrint = () => {
+    if (selectedVouchers.length === 0) return;
+    setSelectedVoucher(null);
+    setBulkPrintList(selectedVouchers);
+    setTimeout(() => {
+      window.print();
+      markPrinted(selectedVouchers.map((v) => v.code));
+      toast.success(`${selectedVouchers.length} voucher dikirim ke printer`);
+    }, 300);
+  };
+
+  const handleBulkDelete = async () => {
+    if (selected.length === 0) return;
+    if (!window.confirm(`Hapus ${selected.length} voucher terpilih? Tindakan ini tidak bisa dibatalkan.`)) return;
+    try {
+      const { data } = await axios.post(`${API_URL}/api/vouchers/bulk-delete`, { ids: selected }, { withCredentials: true });
+      setVouchers((prev) => prev.filter((v) => !selected.includes(v._id)));
+      setSelected([]);
+      toast.success(data.message);
+    } catch (err) {
+      toast.error(err.response?.data?.detail || "Gagal menghapus voucher");
+    }
   };
 
   const handleDelete = async (voucher) => {
@@ -167,6 +202,7 @@ const VoucherManagement = () => {
   };
 
   const handleViewDetail = (voucher) => {
+    setBulkPrintList(null);
     setSelectedVoucher(voucher);
     setShowDetailModal(true);
   };
@@ -218,6 +254,21 @@ const VoucherManagement = () => {
           </Select>
         </div>
 
+        {selected.length > 0 && (
+          <div className="flex flex-wrap items-center gap-3 p-3 rounded-xl border-2 border-black bg-yellow-100" data-testid="bulk-action-bar">
+            <span className="font-bold" data-testid="bulk-selected-count">{selected.length} voucher dipilih</span>
+            <div className="flex gap-2 ml-auto">
+              <Button size="sm" onClick={handleBulkPrint} data-testid="btn-bulk-print">
+                <Printer className="w-4 h-4 mr-2" /> Cetak ({selected.length})
+              </Button>
+              <Button size="sm" variant="destructive" onClick={handleBulkDelete} data-testid="btn-bulk-delete">
+                <Trash2 className="w-4 h-4 mr-2" /> Hapus ({selected.length})
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => setSelected([])} data-testid="btn-bulk-clear">Batal</Button>
+            </div>
+          </div>
+        )}
+
         {/* Voucher List */}
         {loading ? (
           <div className="space-y-4">
@@ -237,7 +288,14 @@ const VoucherManagement = () => {
           </div>
         ) : filteredVouchers.length > 0 ? (
           <div className="space-y-3">
+            <div className="flex items-center gap-2 px-4 text-sm md:hidden">
+              <Checkbox checked={allSelected} onCheckedChange={toggleSelectAll} data-testid="checkbox-select-all-mobile" />
+              <span className="font-bold">Pilih semua</span>
+            </div>
             <div className="hidden md:flex items-center gap-4 px-4 text-sm" data-testid="voucher-sort-header">
+              <div className="w-5 flex-shrink-0 flex items-center">
+                <Checkbox checked={allSelected} onCheckedChange={toggleSelectAll} data-testid="checkbox-select-all" />
+              </div>
               <div className="w-16 flex-shrink-0" />
               {SORT_COLUMNS.slice(0, 3).map((c) => (
                 <button key={c.key} type="button" onClick={() => toggleSort(c.key)}
@@ -268,6 +326,11 @@ const VoucherManagement = () => {
               >
                 <CardContent className="p-4">
                   <div className="flex flex-wrap items-center gap-3 sm:gap-4">
+                    <Checkbox
+                      checked={selected.includes(voucher._id)}
+                      onCheckedChange={() => toggleSelect(voucher._id)}
+                      data-testid={`checkbox-${voucher.code}`}
+                    />
                     {/* QR Preview */}
                     <div className="w-16 h-16 bg-white border rounded flex-shrink-0 overflow-hidden">
                       <img
@@ -417,9 +480,13 @@ const VoucherManagement = () => {
           </DialogContent>
         </Dialog>
 
-        {selectedVoucher && (
+        {(bulkPrintList || selectedVoucher) && (
           <div className="print-voucher" ref={printRef} data-testid="print-template" style={{ display: 'none' }}>
-            <PrintVoucher voucher={selectedVoucher} settings={settings} />
+            {bulkPrintList
+              ? bulkPrintList.map((v, idx) => (
+                  <PrintVoucher key={v.code} voucher={v} settings={settings} pageBreak={idx < bulkPrintList.length - 1} />
+                ))
+              : <PrintVoucher voucher={selectedVoucher} settings={settings} />}
           </div>
         )}
       </div>

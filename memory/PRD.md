@@ -144,3 +144,8 @@ Semua fitur inti sudah diimplementasi dan diuji.
 - POST /api/admin/reset-data {confirm:"HAPUS SEMUA"} → hapus voucher, riwayat, counter (user & pengaturan tetap). UI Zona Bahaya di Pengaturan.
 - Kasir QR: scanner tetap ter-mount (hidden) saat hasil tampil, debounce scan ganda (busyRef + 4s), decode trim/uppercase, pause/resume aman.
 - Visual: avatar sidebar → ikon monitor gaya komik; kartu Total Nominal warna amber-100 lebih lembut.
+
+## Update 2026-09-05 — Suara kasir, riwayat kasir, aksi massal (iteration_8)
+- useSound.js (Web Audio chime/buzzer, toggle btn-toggle-sound, localStorage voucherku_sound).
+- GET /api/redemptions/mine → riwayat hari ini per user; kartu "Riwayat Hari Ini" di /kasir.
+- Kelola Voucher: checkbox per voucher, pilih semua, bar aksi massal Cetak/Hapus; POST /api/vouchers/bulk-delete.

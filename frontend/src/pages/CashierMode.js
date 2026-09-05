@@ -7,9 +7,13 @@ import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Card, CardContent } from "../components/ui/card";
 import { toast } from "sonner";
+import { useSound } from "../hooks/useSound";
 import {
   ScanLine,
   Keyboard,
+  Volume2,
+  VolumeX,
+  History,
   CheckCircle2,
   XCircle,
   ArrowLeft,
@@ -33,6 +37,19 @@ const CashierMode = () => {
   const scannerRef = useRef(null);
   const handleScanRef = useRef(null);
   const busyRef = useRef(false);
+  const { enabled: soundOn, toggle: toggleSound, playSuccess, playError } = useSound();
+  const [history, setHistory] = useState({ items: [], count: 0, total_nominal: 0 });
+
+  const fetchHistory = useCallback(async () => {
+    try {
+      const { data } = await axios.get(`${API_URL}/api/redemptions/mine`, { withCredentials: true });
+      setHistory(data);
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    fetchHistory();
+  }, [fetchHistory]);
   const lastScanRef = useRef({ code: "", at: 0 });
 
   const initScanner = useCallback(() => {
@@ -107,7 +124,9 @@ const CashierMode = () => {
         message: data.message,
         voucher: data.voucher,
       });
+      playSuccess();
       toast.success(data.message);
+      fetchHistory();
     } catch (error) {
       const message = error.response?.data?.detail || "Gagal memverifikasi voucher";
       setResult({
@@ -115,6 +134,7 @@ const CashierMode = () => {
         message: message,
         voucher: null,
       });
+      playError();
       toast.error(message);
     } finally {
       setLoading(false);
@@ -191,6 +211,16 @@ const CashierMode = () => {
             data-testid="btn-logout-kasir"
           >
             Logout
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={toggleSound}
+            className="text-white hover:bg-emerald-700"
+            title={soundOn ? "Matikan suara" : "Nyalakan suara"}
+            data-testid="btn-toggle-sound"
+          >
+            {soundOn ? <Volume2 className="w-5 h-5" /> : <VolumeX className="w-5 h-5" />}
           </Button>
         </div>
       </header>
@@ -350,8 +380,37 @@ const CashierMode = () => {
               </form>
         )}
 
+        {/* Today's history */}
+        <Card className="mt-8" data-testid="cashier-history">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2 font-bold">
+                <History className="w-4 h-4" /> Riwayat Hari Ini
+              </div>
+              <span className="text-sm" data-testid="cashier-history-summary">
+                {history.count} voucher · {formatCurrency(history.total_nominal)}
+              </span>
+            </div>
+            {history.items.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-3" data-testid="cashier-history-empty">Belum ada voucher yang di-scan hari ini</p>
+            ) : (
+              <ul className="divide-y max-h-64 overflow-y-auto">
+                {history.items.map((h) => (
+                  <li key={`${h.voucher_code}-${h.redeemed_at}`} className="flex items-center justify-between py-2 text-sm" data-testid={`history-item-${h.voucher_code}`}>
+                    <span className="font-mono font-bold">{h.voucher_code}</span>
+                    <span className="text-emerald-700 font-bold">{formatCurrency(h.nominal)}</span>
+                    <span className="text-muted-foreground text-xs">
+                      {new Date(h.redeemed_at).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </CardContent>
+        </Card>
+
         {/* User Info */}
-        <div className="mt-8 text-center text-sm text-muted-foreground">
+        <div className="mt-6 text-center text-sm text-muted-foreground">
           <p>Login sebagai: <span className="font-medium">{user?.name}</span></p>
         </div>
       </main>

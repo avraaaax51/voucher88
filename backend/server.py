@@ -140,6 +140,9 @@ class VoucherRedeem(BaseModel):
 class MarkPrinted(BaseModel):
     codes: list[str]
 
+class BulkIds(BaseModel):
+    ids: list[str]
+
 class UserResponse(BaseModel):
     id: str = Field(alias="_id")
     email: str
@@ -453,6 +456,27 @@ async def delete_voucher(voucher_id: str, admin: dict = Depends(require_role(["a
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Voucher tidak ditemukan")
     return {"message": "Voucher berhasil dihapus"}
+
+@api_router.post("/vouchers/bulk-delete")
+async def bulk_delete_vouchers(data: BulkIds, admin: dict = Depends(require_role(["admin"]))):
+    oids = [ObjectId(i) for i in data.ids if ObjectId.is_valid(i)]
+    result = await db.vouchers.delete_many({"_id": {"$in": oids}})
+    return {"message": f"{result.deleted_count} voucher dihapus", "deleted": result.deleted_count}
+
+@api_router.get("/redemptions/mine")
+async def my_redemptions_today(user: dict = Depends(get_current_user)):
+    """Today's redemptions by the current user"""
+    now = datetime.now(timezone.utc)
+    start = now.replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(hours=7)
+    logs = await db.redemption_logs.find(
+        {"redeemed_by": user["_id"], "redeemed_at": {"$gte": start}}
+    ).sort("redeemed_at", -1).limit(50).to_list(50)
+    items = [{
+        "voucher_code": l["voucher_code"],
+        "nominal": l["nominal"],
+        "redeemed_at": l["redeemed_at"].isoformat() if isinstance(l["redeemed_at"], datetime) else l["redeemed_at"],
+    } for l in logs]
+    return {"items": items, "count": len(items), "total_nominal": sum(i["nominal"] for i in items)}
 
 @api_router.post("/vouchers/mark-printed")
 async def mark_printed(data: MarkPrinted, admin: dict = Depends(require_role(["admin"]))):
