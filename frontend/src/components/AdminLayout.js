@@ -79,7 +79,7 @@ const AdminLayout = ({ children }) => {
             <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center">
               <Store className="w-5 h-5 text-primary-foreground" />
             </div>
-            <span className="text-xl font-extrabold tracking-tight">VoucherKu</span>
+            <span className="text-xl font-extrabold tracking-tight">Voucher88</span>
           </Link>
 
           {/* Navigation */}
@@ -149,7 +149,7 @@ const AdminLayout = ({ children }) => {
           <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
             <Store className="w-4 h-4 text-primary-foreground" />
           </div>
-          <span className="text-lg font-extrabold">VoucherKu</span>
+          <span className="text-lg font-extrabold">Voucher88</span>
         </Link>
 
         <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
@@ -165,7 +165,7 @@ const AdminLayout = ({ children }) => {
                 <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center">
                   <Store className="w-5 h-5 text-primary-foreground" />
                 </div>
-                <span className="text-xl font-extrabold">VoucherKu</span>
+                <span className="text-xl font-extrabold">Voucher88</span>
               </div>
 
               {/* Navigation */}
