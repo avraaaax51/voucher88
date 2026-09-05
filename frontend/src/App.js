@@ -52,6 +52,9 @@ const RoleRedirect = () => {
   return <Navigate to={user.role === "admin" ? "/admin" : "/kasir"} replace />;
 };
 
+
+const ADMIN_ROLES = ["admin"];
+const CASHIER_ROLES = ["admin", "kasir"];
 function App() {
   return (
     <AuthProvider>
@@ -64,7 +67,7 @@ function App() {
           <Route
             path="/admin"
             element={
-              <ProtectedRoute allowedRoles={["admin"]}>
+              <ProtectedRoute allowedRoles={ADMIN_ROLES}>
                 <AdminDashboard />
               </ProtectedRoute>
             }
@@ -72,7 +75,7 @@ function App() {
           <Route
             path="/admin/vouchers"
             element={
-              <ProtectedRoute allowedRoles={["admin"]}>
+              <ProtectedRoute allowedRoles={ADMIN_ROLES}>
                 <VoucherManagement />
               </ProtectedRoute>
             }
@@ -80,7 +83,7 @@ function App() {
           <Route
             path="/admin/vouchers/create"
             element={
-              <ProtectedRoute allowedRoles={["admin"]}>
+              <ProtectedRoute allowedRoles={ADMIN_ROLES}>
                 <CreateVoucher />
               </ProtectedRoute>
             }
@@ -88,7 +91,7 @@ function App() {
           <Route
             path="/admin/users"
             element={
-              <ProtectedRoute allowedRoles={["admin"]}>
+              <ProtectedRoute allowedRoles={ADMIN_ROLES}>
                 <UserManagement />
               </ProtectedRoute>
             }
@@ -96,7 +99,7 @@ function App() {
           <Route
             path="/admin/reports"
             element={
-              <ProtectedRoute allowedRoles={["admin"]}>
+              <ProtectedRoute allowedRoles={ADMIN_ROLES}>
                 <Reports />
               </ProtectedRoute>
             }
@@ -106,7 +109,7 @@ function App() {
           <Route
             path="/kasir"
             element={
-              <ProtectedRoute allowedRoles={["admin", "kasir"]}>
+              <ProtectedRoute allowedRoles={CASHIER_ROLES}>
                 <CashierMode />
               </ProtectedRoute>
             }

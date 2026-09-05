@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import AdminLayout from "../components/AdminLayout";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
@@ -53,7 +53,7 @@ const UserManagement = () => {
     pin: "",
   });
 
-  const fetchUsers = async () => {
+  const fetchUsers = useCallback(async () => {
     try {
       const response = await fetch(`${API_URL}/api/users`, {
         credentials: "include",
@@ -66,11 +66,11 @@ const UserManagement = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     fetchUsers();
-  }, []);
+  }, [fetchUsers]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;

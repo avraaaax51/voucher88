@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Link } from "react-router-dom";
 import axios from "axios";
 import { useAuth } from "../context/AuthContext";
@@ -26,11 +26,7 @@ const AdminDashboard = () => {
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    fetchStats();
-  }, []);
-
-  const fetchStats = async () => {
+  const fetchStats = useCallback(async () => {
     try {
       const { data } = await axios.get(`${API_URL}/api/stats`, {
         withCredentials: true,
@@ -39,11 +35,14 @@ const AdminDashboard = () => {
       setStats(data);
     } catch (error) {
       toast.error("Gagal memuat statistik");
-      console.error(error);
     } finally {
       setLoading(false);
     }
-  };
+  }, [getAuthHeaders]);
+
+  useEffect(() => {
+    fetchStats();
+  }, [fetchStats]);
 
   const formatCurrency = (value) => {
     return new Intl.NumberFormat("id-ID", {
@@ -68,7 +67,7 @@ const AdminDashboard = () => {
         <div className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             {[...Array(4)].map((_, i) => (
-              <Card key={i}>
+              <Card key={`skeleton-${i}`}>
                 <CardContent className="p-6">
                   <Skeleton className="h-4 w-24 mb-2" />
                   <Skeleton className="h-8 w-16" />

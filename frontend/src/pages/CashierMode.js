@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { Html5QrcodeScanner } from "html5-qrcode";
 import axios from "axios";
@@ -31,19 +31,9 @@ const CashierMode = () => {
   const [scannerReady, setScannerReady] = useState(false);
   
   const scannerRef = useRef(null);
+  const handleScanRef = useRef(null);
 
-  useEffect(() => {
-    if (mode === "scan") {
-      initScanner();
-    }
-    return () => {
-      if (scannerRef.current) {
-        scannerRef.current.clear().catch(() => {});
-      }
-    };
-  }, [mode]);
-
-  const initScanner = () => {
+  const initScanner = useCallback(() => {
     setScannerReady(false);
     
     // Clear existing scanner
@@ -66,8 +56,7 @@ const CashierMode = () => {
 
     scanner.render(
       (decodedText) => {
-        // Success callback
-        handleScan(decodedText);
+        handleScanRef.current?.(decodedText);
         scanner.pause(true);
       },
       (error) => {
@@ -77,7 +66,18 @@ const CashierMode = () => {
 
     scannerRef.current = scanner;
     setScannerReady(true);
-  };
+  }, []);
+
+  useEffect(() => {
+    if (mode === "scan") {
+      initScanner();
+    }
+    return () => {
+      if (scannerRef.current) {
+        scannerRef.current.clear().catch(() => {});
+      }
+    };
+  }, [mode, initScanner]);
 
   const handleScan = async (code) => {
     if (loading) return;
@@ -113,6 +113,8 @@ const CashierMode = () => {
       setLoading(false);
     }
   };
+
+  handleScanRef.current = handleScan;
 
   const handleManualSubmit = (e) => {
     e.preventDefault();

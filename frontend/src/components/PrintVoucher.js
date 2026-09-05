@@ -99,7 +99,7 @@ export const PrintVoucher = ({ voucher, pageBreak = false }) => {
           }}
         >
           {termsLines.map((line, i) => (
-            <div key={i} style={{ fontSize: i === 0 ? "15px" : "12px", fontWeight: 900 }}>
+            <div key={`${i}-${line}`} style={{ fontSize: i === 0 ? "15px" : "12px", fontWeight: 900 }}>
               {line}
             </div>
           ))}

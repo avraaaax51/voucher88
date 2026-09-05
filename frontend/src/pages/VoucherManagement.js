@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Link } from "react-router-dom";
 import axios from "axios";
 import { useAuth } from "../context/AuthContext";
@@ -44,11 +44,7 @@ const VoucherManagement = () => {
   const [showDetailModal, setShowDetailModal] = useState(false);
   const printRef = useRef(null);
 
-  useEffect(() => {
-    fetchVouchers();
-  }, [statusFilter]);
-
-  const fetchVouchers = async () => {
+  const fetchVouchers = useCallback(async () => {
     try {
       const params = statusFilter !== "all" ? `?status=${statusFilter}` : "";
       const { data } = await axios.get(`${API_URL}/api/vouchers${params}`, {
@@ -61,7 +57,11 @@ const VoucherManagement = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [statusFilter, getAuthHeaders]);
+
+  useEffect(() => {
+    fetchVouchers();
+  }, [fetchVouchers]);
 
   const formatCurrency = (value) => {
     return new Intl.NumberFormat("id-ID", {
@@ -159,7 +159,7 @@ const VoucherManagement = () => {
         {loading ? (
           <div className="space-y-4">
             {[...Array(5)].map((_, i) => (
-              <Card key={i}>
+              <Card key={`skeleton-${i}`}>
                 <CardContent className="p-4">
                   <div className="flex items-center gap-4">
                     <Skeleton className="w-16 h-16 rounded" />

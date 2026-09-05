@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import AdminLayout from "../components/AdminLayout";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
@@ -40,7 +40,7 @@ const Reports = () => {
     end_date: "",
   });
 
-  const fetchStats = async () => {
+  const fetchStats = useCallback(async () => {
     try {
       const response = await fetch(`${API_URL}/api/stats`, {
         credentials: "include",
@@ -51,14 +51,14 @@ const Reports = () => {
     } catch (err) {
       toast.error(err.message);
     }
-  };
+  }, []);
 
-  const fetchDailyReport = async () => {
+  const fetchDailyReport = useCallback(async (range = {}) => {
     try {
       let url = `${API_URL}/api/reports/daily`;
       const params = new URLSearchParams();
-      if (dateRange.start_date) params.append("start_date", dateRange.start_date);
-      if (dateRange.end_date) params.append("end_date", dateRange.end_date);
+      if (range.start_date) params.append("start_date", range.start_date);
+      if (range.end_date) params.append("end_date", range.end_date);
       if (params.toString()) url += `?${params.toString()}`;
 
       const response = await fetch(url, {
@@ -72,15 +72,15 @@ const Reports = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     Promise.all([fetchStats(), fetchDailyReport()]);
-  }, []);
+  }, [fetchStats, fetchDailyReport]);
 
   const handleDateFilter = () => {
     setLoading(true);
-    fetchDailyReport();
+    fetchDailyReport(dateRange);
   };
 
   const formatCurrency = (amount) => {

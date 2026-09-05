@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, useCallback } from "react";
+import { createContext, useContext, useState, useEffect, useCallback, useMemo } from "react";
 import axios from "axios";
 
 const AuthContext = createContext(null);
@@ -90,7 +90,7 @@ export const AuthProvider = ({ children }) => {
     try {
       await axios.post(`${API_URL}/api/auth/logout`, {}, { withCredentials: true });
     } catch (error) {
-      console.error("Logout error:", error);
+      // ignore network errors on logout; local state is cleared below
     } finally {
       setUser(null);
       setToken(null);
@@ -98,23 +98,19 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const getAuthHeaders = () => {
-    return token ? { Authorization: `Bearer ${token}` } : {};
-  };
+  const getAuthHeaders = useCallback(
+    () => (token ? { Authorization: `Bearer ${token}` } : {}),
+    [token]
+  );
+
+  const value = useMemo(
+    () => ({ user, loading, login, pinLogin, logout, token, getAuthHeaders, checkAuth }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [user, loading, token, getAuthHeaders, checkAuth]
+  );
 
   return (
-    <AuthContext.Provider
-      value={{
-        user,
-        loading,
-        login,
-        pinLogin,
-        logout,
-        token,
-        getAuthHeaders,
-        checkAuth,
-      }}
-    >
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   );

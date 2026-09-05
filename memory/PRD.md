@@ -108,3 +108,8 @@ Semua fitur inti sudah diimplementasi dan diuji.
 - Desain mengikuti gambar referensi terbaru: border rounded, header Toko/ANEKA88/MANGON, ribbon hitam "VOUCHER BELANJA" dengan ujung berlekuk, NILAI VOUCHER + nominal besar, QR 40mm, banner hitam rounded untuk syarat/promo (baris pertama lebih besar), kotak tanggal berlaku dengan ikon kalender.
 - Konten dinamis: nominal, QR, syarat (fallback "BELANJA LEBIH HEMAT / DI TOKO ANEKA 88 MANGON"), tanggal expired.
 - Testing agent iteration_3: PASS (print media render, window.print terpanggil, bulk 2 voucher). Belum dikonfirmasi user pada printer fisik.
+
+## Update 2026-09-05 — Code review fixes
+- useCallback + deps lengkap di AdminDashboard, VoucherManagement, UserManagement, Reports, CashierMode (scanner memakai ref untuk handleScan).
+- AuthContext: getAuthHeaders useCallback, context value useMemo, console.error dihapus. App.js: konstanta ADMIN_ROLES/CASHIER_ROLES.
+- Ditolak/ditunda: pindah token ke httpOnly cookie (perubahan auth, butuh persetujuan user + playbook); temuan Python `is` adalah false positive (`is None`); refactor komponen besar ditunda.
