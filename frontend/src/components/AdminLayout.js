@@ -144,7 +144,7 @@ const AdminLayout = ({ children }) => {
       </aside>
 
       {/* Mobile Header */}
-      <header className="lg:hidden fixed top-0 left-0 right-0 h-16 bg-card border-b z-40 px-4 flex items-center justify-between">
+      <header className="lg:hidden fixed top-0 left-0 right-0 h-16 bg-card border-b z-40 px-4 flex flex-row-reverse items-center justify-between">
         <Link to="/admin" className="flex items-center gap-2">
           <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
             <Store className="w-4 h-4 text-primary-foreground" />
