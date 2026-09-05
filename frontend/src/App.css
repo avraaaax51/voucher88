@@ -1,0 +1,184 @@
+/* VoucherKu App Styles */
+
+/* Layout containers */
+.app-container {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Sidebar styles */
+.sidebar {
+    width: 260px;
+    min-height: 100vh;
+    background: hsl(var(--card));
+    border-right: 1px solid hsl(var(--border));
+}
+
+.sidebar-collapsed {
+    width: 72px;
+}
+
+/* Main content area */
+.main-content {
+    flex: 1;
+    padding: 1.5rem;
+}
+
+@media (min-width: 768px) {
+    .main-content {
+        padding: 2rem;
+    }
+}
+
+/* Stat cards */
+.stat-card {
+    background: hsl(var(--card));
+    border: 1px solid hsl(var(--border));
+    border-radius: var(--radius);
+    padding: 1.5rem;
+    transition: box-shadow 0.2s ease;
+}
+
+.stat-card:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+/* Voucher card for printing */
+.voucher-print-card {
+    width: 300px;
+    background: white;
+    color: black;
+    padding: 16px;
+    font-family: var(--font-body);
+}
+
+.voucher-print-card .qr-container {
+    display: flex;
+    justify-content: center;
+    margin: 12px 0;
+}
+
+.voucher-print-card .qr-container img {
+    width: 120px;
+    height: 120px;
+}
+
+/* Cashier mode specific */
+.cashier-container {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.scanner-area {
+    position: relative;
+    width: 100%;
+    max-width: 400px;
+    aspect-ratio: 1;
+    background: hsl(var(--muted));
+    border-radius: var(--radius);
+    overflow: hidden;
+}
+
+.scanner-area video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+/* Result display */
+.result-success {
+    background: hsl(var(--success) / 0.1);
+    border: 2px solid hsl(var(--success));
+    border-radius: var(--radius);
+}
+
+.result-error {
+    background: hsl(var(--destructive) / 0.1);
+    border: 2px solid hsl(var(--destructive));
+    border-radius: var(--radius);
+}
+
+/* Button variants */
+.btn-cashier {
+    min-height: 64px;
+    font-size: 1.125rem;
+    font-weight: 600;
+}
+
+/* Table styles */
+.data-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.data-table th {
+    text-align: left;
+    padding: 12px 16px;
+    background: hsl(var(--muted));
+    font-weight: 600;
+    font-size: 0.875rem;
+    color: hsl(var(--muted-foreground));
+    border-bottom: 1px solid hsl(var(--border));
+}
+
+.data-table td {
+    padding: 12px 16px;
+    border-bottom: 1px solid hsl(var(--border));
+}
+
+.data-table tr:hover td {
+    background: hsl(var(--muted) / 0.5);
+}
+
+/* Badge styles */
+.badge-active {
+    background: hsl(var(--success) / 0.1);
+    color: hsl(var(--success));
+}
+
+.badge-redeemed {
+    background: hsl(var(--primary) / 0.1);
+    color: hsl(var(--primary));
+}
+
+.badge-expired {
+    background: hsl(var(--destructive) / 0.1);
+    color: hsl(var(--destructive));
+}
+
+/* Form styles */
+.form-group {
+    margin-bottom: 1.5rem;
+}
+
+.form-label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: 500;
+    color: hsl(var(--foreground));
+}
+
+/* Mobile first adjustments */
+@media (max-width: 640px) {
+    .hide-mobile {
+        display: none;
+    }
+    
+    .main-content {
+        padding: 1rem;
+    }
+    
+    .stat-card {
+        padding: 1rem;
+    }
+}
+
+/* Large touch targets for cashier */
+@media (max-width: 768px) {
+    .cashier-btn {
+        min-height: 56px;
+        font-size: 1rem;
+    }
+}

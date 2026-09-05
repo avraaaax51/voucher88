@@ -1,0 +1,639 @@
+from dotenv import load_dotenv
+from pathlib import Path
+
+ROOT_DIR = Path(__file__).parent
+load_dotenv(ROOT_DIR / '.env')
+
+from fastapi import FastAPI, APIRouter, HTTPException, Request, Response, Depends
+from starlette.middleware.cors import CORSMiddleware
+from motor.motor_asyncio import AsyncIOMotorClient
+from bson import ObjectId
+import os
+import logging
+import bcrypt
+import jwt
+import secrets
+import string
+import qrcode
+import io
+import base64
+from datetime import datetime, timezone, timedelta
+from pydantic import BaseModel, Field, EmailStr, field_validator
+from typing import List, Optional, Annotated
+from contextlib import asynccontextmanager
+
+# MongoDB connection
+mongo_url = os.environ['MONGO_URL']
+client = AsyncIOMotorClient(mongo_url)
+db = client[os.environ['DB_NAME']]
+
+# JWT Config
+JWT_ALGORITHM = "HS256"
+
+def get_jwt_secret() -> str:
+    return os.environ["JWT_SECRET"]
+
+# Password hashing
+def hash_password(password: str) -> str:
+    salt = bcrypt.gensalt()
+    hashed = bcrypt.hashpw(password.encode("utf-8"), salt)
+    return hashed.decode("utf-8")
+
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    return bcrypt.checkpw(plain_password.encode("utf-8"), hashed_password.encode("utf-8"))
+
+# JWT Token Management
+def create_access_token(user_id: str, email: str, role: str) -> str:
+    payload = {
+        "sub": user_id,
+        "email": email,
+        "role": role,
+        "exp": datetime.now(timezone.utc) + timedelta(hours=8),
+        "type": "access"
+    }
+    return jwt.encode(payload, get_jwt_secret(), algorithm=JWT_ALGORITHM)
+
+def create_refresh_token(user_id: str) -> str:
+    payload = {
+        "sub": user_id,
+        "exp": datetime.now(timezone.utc) + timedelta(days=7),
+        "type": "refresh"
+    }
+    return jwt.encode(payload, get_jwt_secret(), algorithm=JWT_ALGORITHM)
+
+# Auth Helper
+async def get_current_user(request: Request) -> dict:
+    token = request.cookies.get("access_token")
+    if not token:
+        auth_header = request.headers.get("Authorization", "")
+        if auth_header.startswith("Bearer "):
+            token = auth_header[7:]
+    if not token:
+        raise HTTPException(status_code=401, detail="Tidak terautentikasi")
+    try:
+        payload = jwt.decode(token, get_jwt_secret(), algorithms=[JWT_ALGORITHM])
+        if payload.get("type") != "access":
+            raise HTTPException(status_code=401, detail="Token tidak valid")
+        user = await db.users.find_one({"_id": ObjectId(payload["sub"])})
+        if not user:
+            raise HTTPException(status_code=401, detail="User tidak ditemukan")
+        user["_id"] = str(user["_id"])
+        user.pop("password_hash", None)
+        user.pop("pin_hash", None)
+        return user
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Token sudah kadaluarsa")
+    except jwt.InvalidTokenError:
+        raise HTTPException(status_code=401, detail="Token tidak valid")
+
+# Role checker
+def require_role(allowed_roles: list):
+    async def role_checker(request: Request):
+        user = await get_current_user(request)
+        if user["role"] not in allowed_roles:
+            raise HTTPException(status_code=403, detail="Akses ditolak")
+        return user
+    return role_checker
+
+# Pydantic Models
+class UserCreate(BaseModel):
+    email: EmailStr
+    password: str
+    name: str
+    role: str = "kasir"
+    pin: Optional[str] = None
+
+class UserLogin(BaseModel):
+    email: EmailStr
+    password: str
+
+class PinLogin(BaseModel):
+    pin: str
+
+class VoucherCreate(BaseModel):
+    title: str
+    nominal: int
+    terms: str = ""
+    expires_at: str
+    quantity: int = 1
+
+class VoucherRedeem(BaseModel):
+    code: str
+
+class UserResponse(BaseModel):
+    id: str = Field(alias="_id")
+    email: str
+    name: str
+    role: str
+    
+    class Config:
+        populate_by_name = True
+
+# Generate unique voucher code: 7 alfanumerik campuran + 3 digit urutan (tanpa tanda hubung)
+def generate_voucher_code(sequence: int) -> str:
+    chars = string.ascii_uppercase + string.digits
+    random_part = ''.join(secrets.choice(chars) for _ in range(7))
+    sequence_part = str(sequence).zfill(3)
+    return f"{random_part}{sequence_part}"
+
+# Generate QR Code as base64
+def generate_qr_base64(data: str) -> str:
+    qr = qrcode.QRCode(version=1, box_size=10, border=2)
+    qr.add_data(data)
+    qr.make(fit=True)
+    img = qr.make_image(fill_color="black", back_color="white")
+    buffer = io.BytesIO()
+    img.save(buffer, format="PNG")
+    buffer.seek(0)
+    return base64.b64encode(buffer.getvalue()).decode()
+
+# Startup event
+async def seed_admin():
+    admin_email = os.environ.get("ADMIN_EMAIL", "admin@example.com").lower()
+    admin_password = os.environ.get("ADMIN_PASSWORD", "admin123")
+    
+    existing = await db.users.find_one({"email": admin_email})
+    if existing is None:
+        hashed = hash_password(admin_password)
+        await db.users.insert_one({
+            "email": admin_email,
+            "password_hash": hashed,
+            "name": "Admin",
+            "role": "admin",
+            "created_at": datetime.now(timezone.utc)
+        })
+        logging.info(f"Admin user created: {admin_email}")
+    elif not verify_password(admin_password, existing["password_hash"]):
+        await db.users.update_one(
+            {"email": admin_email},
+            {"$set": {"password_hash": hash_password(admin_password)}}
+        )
+        logging.info("Admin password updated")
+
+async def create_indexes():
+    await db.users.create_index("email", unique=True)
+    await db.users.create_index("pin", sparse=True)
+    await db.vouchers.create_index("code", unique=True)
+    await db.vouchers.create_index("expires_at")
+    await db.login_attempts.create_index("identifier")
+
+async def write_test_credentials():
+    """Write test credentials to memory file"""
+    credentials_content = f"""# VoucherKu Test Credentials
+
+## Admin Account
+- Email: {os.environ.get("ADMIN_EMAIL", "admin@example.com")}
+- Password: {os.environ.get("ADMIN_PASSWORD", "admin123")}
+- Role: admin
+
+## Auth Endpoints
+- POST /api/auth/login - Login with email/password
+- POST /api/auth/pin-login - Login with PIN (kasir only)
+- GET /api/auth/me - Get current user
+- POST /api/auth/logout - Logout
+
+## Voucher Endpoints
+- POST /api/vouchers - Create vouchers (admin)
+- GET /api/vouchers - List all vouchers (admin)
+- POST /api/vouchers/redeem - Redeem voucher (kasir/admin)
+- GET /api/vouchers/stats - Get statistics (admin)
+"""
+    try:
+        with open("/app/memory/test_credentials.md", "w") as f:
+            f.write(credentials_content)
+    except Exception as e:
+        logging.error(f"Failed to write test credentials: {e}")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    await create_indexes()
+    await seed_admin()
+    await write_test_credentials()
+    yield
+    client.close()
+
+# Create FastAPI app
+app = FastAPI(lifespan=lifespan)
+
+# Create router with /api prefix
+api_router = APIRouter(prefix="/api")
+
+# CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[os.environ.get("FRONTEND_URL", "http://localhost:3000")],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
+# ==================== AUTH ROUTES ====================
+
+@api_router.post("/auth/login")
+async def login(data: UserLogin, response: Response):
+    email = data.email.lower()
+    
+    # Check brute force
+    identifier = email
+    attempts = await db.login_attempts.find_one({"identifier": identifier})
+    if attempts and attempts.get("count", 0) >= 5:
+        lockout_until = attempts.get("lockout_until")
+        if lockout_until and datetime.now(timezone.utc) < lockout_until:
+            raise HTTPException(status_code=429, detail="Terlalu banyak percobaan. Coba lagi dalam 15 menit.")
+        else:
+            await db.login_attempts.delete_one({"identifier": identifier})
+    
+    user = await db.users.find_one({"email": email})
+    if not user or not verify_password(data.password, user["password_hash"]):
+        # Record failed attempt
+        await db.login_attempts.update_one(
+            {"identifier": identifier},
+            {
+                "$inc": {"count": 1},
+                "$set": {"lockout_until": datetime.now(timezone.utc) + timedelta(minutes=15)}
+            },
+            upsert=True
+        )
+        raise HTTPException(status_code=401, detail="Email atau password salah")
+    
+    # Clear failed attempts
+    await db.login_attempts.delete_one({"identifier": identifier})
+    
+    access_token = create_access_token(str(user["_id"]), user["email"], user["role"])
+    refresh_token = create_refresh_token(str(user["_id"]))
+    
+    response.set_cookie(key="access_token", value=access_token, httponly=True, secure=True, samesite="none", max_age=28800, path="/")
+    response.set_cookie(key="refresh_token", value=refresh_token, httponly=True, secure=True, samesite="none", max_age=604800, path="/")
+    
+    return {
+        "_id": str(user["_id"]),
+        "email": user["email"],
+        "name": user["name"],
+        "role": user["role"],
+        "token": access_token
+    }
+
+@api_router.post("/auth/pin-login")
+async def pin_login(data: PinLogin, response: Response):
+    """Quick PIN login for cashiers"""
+    user = await db.users.find_one({"pin_hash": {"$exists": True}})
+    
+    # Find user with matching PIN
+    users_with_pin = await db.users.find({"pin_hash": {"$exists": True}}).to_list(100)
+    matched_user = None
+    for u in users_with_pin:
+        if verify_password(data.pin, u["pin_hash"]):
+            matched_user = u
+            break
+    
+    if not matched_user:
+        raise HTTPException(status_code=401, detail="PIN tidak valid")
+    
+    access_token = create_access_token(str(matched_user["_id"]), matched_user["email"], matched_user["role"])
+    refresh_token = create_refresh_token(str(matched_user["_id"]))
+    
+    response.set_cookie(key="access_token", value=access_token, httponly=True, secure=True, samesite="none", max_age=28800, path="/")
+    response.set_cookie(key="refresh_token", value=refresh_token, httponly=True, secure=True, samesite="none", max_age=604800, path="/")
+    
+    return {
+        "_id": str(matched_user["_id"]),
+        "email": matched_user["email"],
+        "name": matched_user["name"],
+        "role": matched_user["role"],
+        "token": access_token
+    }
+
+@api_router.get("/auth/me")
+async def get_me(user: dict = Depends(get_current_user)):
+    return user
+
+@api_router.post("/auth/logout")
+async def logout(response: Response):
+    response.delete_cookie("access_token", path="/")
+    response.delete_cookie("refresh_token", path="/")
+    return {"message": "Berhasil logout"}
+
+@api_router.post("/auth/register")
+async def register(data: UserCreate, response: Response, admin: dict = Depends(require_role(["admin"]))):
+    """Only admin can create new users"""
+    email = data.email.lower()
+    
+    existing = await db.users.find_one({"email": email})
+    if existing:
+        raise HTTPException(status_code=400, detail="Email sudah terdaftar")
+    
+    user_doc = {
+        "email": email,
+        "password_hash": hash_password(data.password),
+        "name": data.name,
+        "role": data.role,
+        "created_at": datetime.now(timezone.utc)
+    }
+    
+    if data.pin:
+        user_doc["pin_hash"] = hash_password(data.pin)
+    
+    result = await db.users.insert_one(user_doc)
+    
+    return {
+        "_id": str(result.inserted_id),
+        "email": email,
+        "name": data.name,
+        "role": data.role
+    }
+
+@api_router.get("/users")
+async def get_users(admin: dict = Depends(require_role(["admin"]))):
+    """Get all users (admin only)"""
+    users = await db.users.find({}, {"password_hash": 0, "pin_hash": 0}).to_list(1000)
+    for u in users:
+        u["_id"] = str(u["_id"])
+    return users
+
+# ==================== VOUCHER ROUTES ====================
+
+@api_router.post("/vouchers")
+async def create_vouchers(data: VoucherCreate, admin: dict = Depends(require_role(["admin"]))):
+    """Create vouchers (admin only)"""
+    
+    # Get current sequence
+    counter = await db.counters.find_one_and_update(
+        {"_id": "voucher_sequence"},
+        {"$inc": {"seq": data.quantity}},
+        upsert=True,
+        return_document=True
+    )
+    start_seq = counter.get("seq", data.quantity) - data.quantity + 1
+    
+    expires_at = datetime.fromisoformat(data.expires_at.replace("Z", "+00:00"))
+    
+    vouchers = []
+    for i in range(data.quantity):
+        code = generate_voucher_code(start_seq + i)
+        qr_base64 = generate_qr_base64(code)
+        
+        voucher = {
+            "code": code,
+            "title": data.title,
+            "nominal": data.nominal,
+            "terms": data.terms,
+            "qr_code": qr_base64,
+            "status": "active",
+            "created_at": datetime.now(timezone.utc),
+            "expires_at": expires_at,
+            "created_by": admin["_id"],
+            "redeemed_at": None,
+            "redeemed_by": None
+        }
+        vouchers.append(voucher)
+    
+    await db.vouchers.insert_many(vouchers)
+    
+    # Return created vouchers
+    for v in vouchers:
+        v["_id"] = str(v.get("_id", ""))
+        v["created_at"] = v["created_at"].isoformat()
+        v["expires_at"] = v["expires_at"].isoformat()
+    
+    return {"message": f"Berhasil membuat {data.quantity} voucher", "vouchers": vouchers}
+
+@api_router.get("/vouchers")
+async def get_vouchers(
+    status: Optional[str] = None,
+    page: int = 1,
+    limit: int = 50,
+    user: dict = Depends(get_current_user)
+):
+    """Get all vouchers with optional filtering"""
+    query = {}
+    if status:
+        query["status"] = status
+    
+    skip = (page - 1) * limit
+    vouchers = await db.vouchers.find(query).sort("created_at", -1).skip(skip).limit(limit).to_list(limit)
+    total = await db.vouchers.count_documents(query)
+    
+    for v in vouchers:
+        v["_id"] = str(v["_id"])
+        if v.get("created_at"):
+            v["created_at"] = v["created_at"].isoformat() if isinstance(v["created_at"], datetime) else v["created_at"]
+        if v.get("expires_at"):
+            v["expires_at"] = v["expires_at"].isoformat() if isinstance(v["expires_at"], datetime) else v["expires_at"]
+        if v.get("redeemed_at"):
+            v["redeemed_at"] = v["redeemed_at"].isoformat() if isinstance(v["redeemed_at"], datetime) else v["redeemed_at"]
+    
+    return {"vouchers": vouchers, "total": total, "page": page, "limit": limit}
+
+@api_router.get("/vouchers/{voucher_id}")
+async def get_voucher(voucher_id: str, user: dict = Depends(get_current_user)):
+    """Get single voucher by ID"""
+    voucher = await db.vouchers.find_one({"_id": ObjectId(voucher_id)})
+    if not voucher:
+        raise HTTPException(status_code=404, detail="Voucher tidak ditemukan")
+    
+    voucher["_id"] = str(voucher["_id"])
+    if voucher.get("created_at"):
+        voucher["created_at"] = voucher["created_at"].isoformat() if isinstance(voucher["created_at"], datetime) else voucher["created_at"]
+    if voucher.get("expires_at"):
+        voucher["expires_at"] = voucher["expires_at"].isoformat() if isinstance(voucher["expires_at"], datetime) else voucher["expires_at"]
+    
+    return voucher
+
+@api_router.post("/vouchers/redeem")
+async def redeem_voucher(data: VoucherRedeem, request: Request, user: dict = Depends(get_current_user)):
+    """Redeem a voucher - atomic operation to prevent double redemption"""
+    code = data.code.upper().strip()
+    
+    # Atomic find and update - only update if status is active
+    result = await db.vouchers.find_one_and_update(
+        {
+            "code": code,
+            "status": "active"
+        },
+        {
+            "$set": {
+                "status": "redeemed",
+                "redeemed_at": datetime.now(timezone.utc),
+                "redeemed_by": user["_id"]
+            }
+        },
+        return_document=True
+    )
+    
+    if not result:
+        # Check why it failed
+        voucher = await db.vouchers.find_one({"code": code})
+        if not voucher:
+            raise HTTPException(status_code=404, detail="Kode voucher tidak ditemukan")
+        if voucher["status"] == "redeemed":
+            raise HTTPException(status_code=400, detail="Voucher sudah pernah digunakan")
+        if voucher["status"] == "expired":
+            raise HTTPException(status_code=400, detail="Voucher sudah kadaluarsa")
+        raise HTTPException(status_code=400, detail="Voucher tidak dapat digunakan")
+    
+    # Check expiration
+    expires_at = result["expires_at"]
+    if isinstance(expires_at, str):
+        expires_at = datetime.fromisoformat(expires_at.replace("Z", "+00:00"))
+    # Ensure timezone-aware comparison
+    if expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=timezone.utc)
+    
+    if datetime.now(timezone.utc) > expires_at:
+        # Revert and mark as expired
+        await db.vouchers.update_one(
+            {"_id": result["_id"]},
+            {"$set": {"status": "expired", "redeemed_at": None, "redeemed_by": None}}
+        )
+        raise HTTPException(status_code=400, detail="Voucher sudah kadaluarsa")
+    
+    # Log redemption
+    await db.redemption_logs.insert_one({
+        "voucher_id": str(result["_id"]),
+        "voucher_code": code,
+        "nominal": result["nominal"],
+        "redeemed_by": user["_id"],
+        "redeemed_by_name": user["name"],
+        "redeemed_at": datetime.now(timezone.utc)
+    })
+    
+    result["_id"] = str(result["_id"])
+    result["created_at"] = result["created_at"].isoformat() if isinstance(result["created_at"], datetime) else result["created_at"]
+    result["expires_at"] = result["expires_at"].isoformat() if isinstance(result["expires_at"], datetime) else result["expires_at"]
+    result["redeemed_at"] = result["redeemed_at"].isoformat() if isinstance(result["redeemed_at"], datetime) else result["redeemed_at"]
+    
+    return {
+        "success": True,
+        "message": "Voucher berhasil digunakan!",
+        "voucher": result
+    }
+
+@api_router.get("/vouchers/check/{code}")
+async def check_voucher(code: str, user: dict = Depends(get_current_user)):
+    """Check voucher status without redeeming"""
+    code = code.upper().strip()
+    voucher = await db.vouchers.find_one({"code": code})
+    
+    if not voucher:
+        raise HTTPException(status_code=404, detail="Kode voucher tidak ditemukan")
+    
+    # Check expiration
+    expires_at = voucher["expires_at"]
+    if isinstance(expires_at, str):
+        expires_at = datetime.fromisoformat(expires_at.replace("Z", "+00:00"))
+    # Ensure timezone-aware comparison
+    if expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=timezone.utc)
+    
+    is_expired = datetime.now(timezone.utc) > expires_at
+    
+    voucher["_id"] = str(voucher["_id"])
+    voucher["created_at"] = voucher["created_at"].isoformat() if isinstance(voucher["created_at"], datetime) else voucher["created_at"]
+    voucher["expires_at"] = voucher["expires_at"].isoformat() if isinstance(voucher["expires_at"], datetime) else voucher["expires_at"]
+    if voucher.get("redeemed_at"):
+        voucher["redeemed_at"] = voucher["redeemed_at"].isoformat() if isinstance(voucher["redeemed_at"], datetime) else voucher["redeemed_at"]
+    
+    voucher["is_expired"] = is_expired
+    voucher["can_redeem"] = voucher["status"] == "active" and not is_expired
+    
+    return voucher
+
+@api_router.get("/stats")
+async def get_stats(admin: dict = Depends(require_role(["admin"]))):
+    """Get voucher statistics"""
+    now = datetime.now(timezone.utc)
+    
+    total = await db.vouchers.count_documents({})
+    active = await db.vouchers.count_documents({"status": "active", "expires_at": {"$gt": now}})
+    redeemed = await db.vouchers.count_documents({"status": "redeemed"})
+    expired = await db.vouchers.count_documents({
+        "$or": [
+            {"status": "expired"},
+            {"status": "active", "expires_at": {"$lte": now}}
+        ]
+    })
+    
+    # Total nominal redeemed
+    pipeline = [
+        {"$match": {"status": "redeemed"}},
+        {"$group": {"_id": None, "total": {"$sum": "$nominal"}}}
+    ]
+    result = await db.vouchers.aggregate(pipeline).to_list(1)
+    total_nominal_redeemed = result[0]["total"] if result else 0
+    
+    # Today's redemptions
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    today_redeemed = await db.redemption_logs.count_documents({
+        "redeemed_at": {"$gte": today_start}
+    })
+    
+    # Recent redemptions
+    recent = await db.redemption_logs.find().sort("redeemed_at", -1).limit(10).to_list(10)
+    for r in recent:
+        r["_id"] = str(r["_id"])
+        r["redeemed_at"] = r["redeemed_at"].isoformat() if isinstance(r["redeemed_at"], datetime) else r["redeemed_at"]
+    
+    return {
+        "total": total,
+        "active": active,
+        "redeemed": redeemed,
+        "expired": expired,
+        "total_nominal_redeemed": total_nominal_redeemed,
+        "today_redeemed": today_redeemed,
+        "recent_redemptions": recent
+    }
+
+@api_router.get("/reports/daily")
+async def get_daily_report(
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    admin: dict = Depends(require_role(["admin"]))
+):
+    """Get daily redemption report"""
+    now = datetime.now(timezone.utc)
+    
+    if not start_date:
+        start = now - timedelta(days=30)
+    else:
+        start = datetime.fromisoformat(start_date.replace("Z", "+00:00"))
+    
+    if not end_date:
+        end = now
+    else:
+        end = datetime.fromisoformat(end_date.replace("Z", "+00:00"))
+    
+    pipeline = [
+        {"$match": {"redeemed_at": {"$gte": start, "$lte": end}}},
+        {
+            "$group": {
+                "_id": {
+                    "$dateToString": {"format": "%Y-%m-%d", "date": "$redeemed_at"}
+                },
+                "count": {"$sum": 1},
+                "total_nominal": {"$sum": "$nominal"}
+            }
+        },
+        {"$sort": {"_id": -1}}
+    ]
+    
+    result = await db.redemption_logs.aggregate(pipeline).to_list(100)
+    
+    return {
+        "report": [{"date": r["_id"], "count": r["count"], "total_nominal": r["total_nominal"]} for r in result],
+        "start_date": start.isoformat(),
+        "end_date": end.isoformat()
+    }
+
+@api_router.get("/")
+async def root():
+    return {"message": "VoucherKu API", "version": "1.0.0"}
+
+# Include router
+app.include_router(api_router)

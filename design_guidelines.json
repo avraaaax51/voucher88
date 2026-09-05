@@ -1,0 +1,100 @@
+{
+  "theme": "light",
+  "typography": {
+    "headings": {
+      "font_family": "Manrope, sans-serif",
+      "weights": ["600", "800"],
+      "usage": "Use for all page titles, dashboard metrics, and large UI text."
+    },
+    "body": {
+      "font_family": "IBM Plex Sans, sans-serif",
+      "weights": ["400", "500"],
+      "usage": "Use for tables, forms, and general UI text."
+    },
+    "hierarchy": {
+      "h1": "text-4xl sm:text-5xl font-extrabold tracking-tight",
+      "h2": "text-2xl sm:text-3xl font-bold tracking-tight",
+      "h3": "text-xl sm:text-2xl font-semibold tracking-tight",
+      "body": "text-base leading-relaxed",
+      "small": "text-sm tracking-wide"
+    }
+  },
+  "colors": {
+    "primary": "#0A0A0A", 
+    "secondary": "#FFFFFF",
+    "accent_success": "#10B981", 
+    "accent_danger": "#EF4444", 
+    "accent_warning": "#F59E0B",
+    "background": "#F9FAFB",
+    "surface": "#FFFFFF",
+    "text_primary": "#111827",
+    "text_secondary": "#4B5563",
+    "border": "#E5E7EB",
+    "rules": [
+      "Use High-Contrast 'Swiss Brutalist' inspired styling: Stark white backgrounds, sharp 1px borders, solid black text.",
+      "Cashier actions (Scan/Redeem) must use highly visible colors (Emerald Green).",
+      "Avoid soft gradients. Use solid colors."
+    ]
+  },
+  "visual_enhancers": {
+    "surfaces": "Use flat surfaces with sharp 1px borders. Subtlest shadow-sm only on hover.",
+    "border_radius": "rounded-lg for most components to maintain a clean modern feel.",
+    "spacing": "Generous on admin (p-6, p-8), compact but large tap-targets on Cashier mode.",
+    "thermal_print": "STRICT B/W. No grayscales, no shadows, no rounded corners. 80mm width max (approx 300px for web preview)."
+  },
+  "layouts": {
+    "admin_dashboard": "Bento Grid style for statistics. Sidebar navigation. High density data tables.",
+    "cashier_mode": "Mobile-first, full screen interface. Massive buttons (min-h-16), large typography for quick scanning/input in fast-paced environment.",
+    "thermal_print_layout": "Center aligned. 300px fixed width container. High contrast black text on white."
+  },
+  "components": {
+    "buttons": "Pill-shaped or slightly rounded (rounded-lg). Huge touch targets for cashier mode.",
+    "cards": "Flat background, 1px subtle border, no shadow by default. Hover adds slight lift.",
+    "inputs": "Shadcn based. Big text inside for easy readability on mobile.",
+    "icons": "Use 'lucide-react' for clean, consistent UI icons."
+  },
+  "motion": {
+    "hover": "Subtle scale (scale-105) on critical buttons.",
+    "transitions": "Use specific transitions (e.g., transition-colors duration-200), NO transition-all.",
+    "loading": "Skeleton loaders for data fetching. Spinner for quick actions like Redeem."
+  },
+  "accessibility": {
+    "contrast": "Maintain WCAG AA (4.5:1 minimum) across all text.",
+    "touch_targets": "Minimum 48x48px for all interactive elements, especially in Cashier mode.",
+    "testing": "All interactive elements MUST have data-testid attributes (e.g., data-testid='login-btn').",
+    "aria": "Use aria-labels for icon-only buttons."
+  },
+  "image_urls": {
+    "auth_background": {
+      "url": "https://images.unsplash.com/photo-1572231086568-6984943e6629?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2NzR8MHwxfHNlYXJjaHwzfHxtb2Rlcm4lMjBjb2ZmZWUlMjBzaG9wJTIwaW50ZXJpb3J8ZW58MHx8fHwxNzg4NTg3NTg5fDA&ixlib=rb-4.1.0&q=85",
+      "description": "Modern coffee shop interior",
+      "placement": "Background image for the split-screen Admin/Cashier login page."
+    },
+    "admin_avatar": {
+      "url": "https://images.pexels.com/photos/30426363/pexels-photo-30426363.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+      "description": "Professional avatar",
+      "placement": "Admin dashboard profile picture."
+    }
+  },
+  "instructions_to_main_agent": [
+    "Build the application using React (.js/jsx files ONLY, NO .tsx files).",
+    "Use Tailwind CSS for styling.",
+    "Use Shadcn UI components for complex UI (tables, dropdowns, forms) and customize them to fit the High-Contrast clean theme.",
+    "Implement 'lucide-react' for icons.",
+    "Ensure 'sonner' is used for all toast notifications (success/error during scan/redeem).",
+    "CASHIER MODE MUST BE MOBILE-FIRST. Big buttons, camera scanner area prominently displayed, manual PIN/Code entry as fallback.",
+    "THERMAL PRINT MODE: Create a specific hidden or printable component structured for 80mm (approx 300px wide). Use @media print to hide everything else and only show the voucher with black/white styling.",
+    "The interface text must be in Bahasa Indonesia as requested.",
+    "CRITICAL: Do NOT use fully transparent backgrounds on dropdowns or overlays. Always use solid colors or glassmorphism (backdrop-blur + opacity).",
+    "CRITICAL: Center aligning the entire app (.App { text-align: center; }) is FORBIDDEN.",
+    "CRITICAL: Ensure every button, input, and interactive component has a relevant data-testid attribute."
+  ],
+  "UNIVERSAL_GUIDELINES_FOR_MAIN_AGENT": [
+    "Avoid generic 'AI slop' design. Create depth, use overlapping elements if necessary, but keep it clean and functional.",
+    "Do not use universal 'transition: all'. Explicitly state transition properties.",
+    "Never use generic AI emojis for icons.",
+    "Use generous spacing for the Admin dashboard to prevent a cramped look, but keep Cashier mode compact and highly accessible.",
+    "Prioritize Shadcn components in src/components/ui.",
+    "Include micro-interactions for hover, active, and focus states."
+  ]
+}
