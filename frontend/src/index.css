@@ -116,6 +116,7 @@ code {
     
     .print-voucher,
     .print-area {
+        display: block !important;
         position: fixed !important;
         left: 0 !important;
         top: 0 !important;
@@ -130,9 +131,15 @@ code {
     
     .print-voucher img,
     .print-area img {
+        display: inline-block !important;
         max-width: 100% !important;
         -webkit-print-color-adjust: exact !important;
         print-color-adjust: exact !important;
+    }
+    
+    .print-voucher svg,
+    .print-area svg {
+        display: inline-block !important;
     }
     
     /* Hide elements with no-print or print:hidden */

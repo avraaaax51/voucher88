@@ -98,9 +98,10 @@ const VoucherManagement = () => {
 
   const handlePrint = (voucher) => {
     setSelectedVoucher(voucher);
+    // Give more time for React to render the print template
     setTimeout(() => {
       window.print();
-    }, 100);
+    }, 300);
   };
 
   const handleViewDetail = (voucher) => {
@@ -314,7 +315,7 @@ const VoucherManagement = () => {
 
         {/* Print Template - Toko Aneka 88 Style */}
         {selectedVoucher && (
-          <div className="print-voucher hidden print:block" ref={printRef} data-testid="print-template">
+          <div className="print-voucher" ref={printRef} data-testid="print-template" style={{ display: 'none' }}>
             <div style={{ 
               width: '80mm', 
               padding: '3mm 4mm', 

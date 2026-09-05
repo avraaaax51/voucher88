@@ -282,7 +282,7 @@ const CreateVoucher = () => {
             </div>
 
             {/* Print Layout - 80mm Thermal - Toko Aneka 88 Style */}
-            <div className="print-area hidden print:block" data-testid="print-area">
+            <div className="print-area" data-testid="print-area" style={{ display: 'none' }}>
               {createdVouchers.map((voucher, idx) => (
                 <div
                   key={voucher.code}
