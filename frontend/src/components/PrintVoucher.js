@@ -2,10 +2,17 @@ import { createPortal } from "react-dom";
 import { DEFAULT_SETTINGS } from "../hooks/useStoreSettings";
 
 // Renders children into #print-root (outside the app tree) so @media print can hide #root
-export const PrintPortal = ({ children, testId }) => {
+export const PrintPortal = ({ children, testId, settings = {} }) => {
   const target = document.getElementById("print-root");
   if (!target) return null;
-  return createPortal(<div className="print-sheet" data-testid={testId}>{children}</div>, target);
+  const paper = Number(settings.print_paper_mm ?? DEFAULT_SETTINGS.print_paper_mm);
+  return createPortal(
+    <div className="print-sheet" data-testid={testId} style={{ width: `${paper}mm` }}>
+      <style>{`@media print { @page { size: ${paper}mm auto; margin: 0; } html, body, #print-root { width: ${paper}mm !important; } }`}</style>
+      {children}
+    </div>,
+    target
+  );
 };
 
 const F = "Arial, Helvetica, sans-serif";
@@ -30,6 +37,10 @@ const Notch = ({ side }) => (
 
 export const PrintVoucher = ({ voucher, settings = {}, pageBreak = false }) => {
   const s = { ...DEFAULT_SETTINGS, ...settings };
+  const paper = Number(s.print_paper_mm), width = Number(s.print_width_mm);
+  const offset = Number(s.print_offset_mm) || 0;
+  const scale = (Number(s.print_scale) || 100) / 100;
+  const marginLeft = Math.max(0, (paper - width) / 2 + offset);
   const termsLines = (voucher.terms || `${s.promo_line1}\n${s.promo_line2}`)
     .split("\n")
     .filter(Boolean);
@@ -42,10 +53,11 @@ export const PrintVoucher = ({ voucher, settings = {}, pageBreak = false }) => {
       className="print-voucher-card"
       data-testid="print-voucher-card"
       style={{
-        width: "72mm",
+        width: `${width}mm`,
         boxSizing: "border-box",
-        margin: "0 auto",
-        padding: "1.5mm 1mm 4mm",
+        marginLeft: `${marginLeft}mm`,
+        marginRight: 0,
+        padding: `1.5mm 0 ${Number(s.print_feed_mm)}mm`,
         background: "#fff",
         color: "#000",
         fontFamily: F,
@@ -54,7 +66,7 @@ export const PrintVoucher = ({ voucher, settings = {}, pageBreak = false }) => {
         breakInside: "avoid",
       }}
     >
-      <div style={{ border: "0.4mm solid #000", borderRadius: "2.5mm", padding: "4mm 3mm 3.5mm", boxSizing: "border-box" }}>
+      <div style={{ zoom: scale, border: "0.4mm solid #000", borderRadius: "2.5mm", padding: "4mm 3mm 3.5mm", boxSizing: "border-box", width: `${width / scale}mm` }}>
         <div style={{ textAlign: "center", lineHeight: 1 }}>
           <div style={{ fontSize: "18px", fontWeight: 700 }}>{s.store_prefix}</div>
           <div style={{ fontSize: "36px", fontWeight: 900, letterSpacing: "-1px", marginTop: "1mm" }}>

@@ -161,3 +161,6 @@ Semua fitur inti sudah diimplementasi dan diuji.
 ## Update 2026-09-05 — Fix print TM-T82 (iteration_10)
 - Print via React portal ke #print-root (di luar #root); @media print: #root none, @page 72mm auto margin 0, kartu 72mm, break-before page per voucher (1 voucher = 1 halaman = 1 cut). PDF 5 voucher = 5 halaman terverifikasi.
 - Catatan driver Epson: set paper 80mm, "Paper Cut: cut per page / at end of document page", margin 0 di dialog print browser.
+
+## Update 2026-09-05 — Pengaturan Cetak (iteration_11)
+- Settings print_paper_mm/print_width_mm/print_offset_mm/print_scale/print_feed_mm (validasi backend). PrintPortal inject @page size dinamis; PrintVoucher marginLeft=(paper-width)/2+offset, zoom=scale, padding bawah=feed. Pratinjau kertas + garis tengah + tombol Cetak Tes di Pengaturan.

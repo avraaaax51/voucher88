@@ -9,6 +9,11 @@ export const DEFAULT_SETTINGS = {
   promo_line1: "BELANJA LEBIH HEMAT",
   promo_line2: "DI TOKO ANEKA 88 MANGON",
   expiry_warning_days: 7,
+  print_paper_mm: 80,
+  print_width_mm: 72,
+  print_offset_mm: 0,
+  print_scale: 100,
+  print_feed_mm: 6,
 };
 
 export const useStoreSettings = () => {

@@ -1,0 +1,25 @@
+{
+  "summary": "Iteration 11: Verified print settings (print_paper_mm, print_width_mm, print_offset_mm, print_scale, print_feed_mm) across backend and frontend. Backend GET returns defaults (80/72/0/100/6); PUT rejects out-of-range (width>paper, offset 25, scale 30, feed 50) with 400 and accepts valid values (80/68/2/90/8) which persist. Frontend Settings paper-preview correctly reflects width 68mm (~257px), paper 80mm (~302px), margin-left 8mm (~30px), inner card zoom 0.9. Save shows success toast 'Pengaturan berhasil disimpan'; values persist after reload. btn-test-print stubbed window.print → 1 card rendered in #print-root [data-testid='settings-test-print'] with <style>@page{size:80mm auto}. Kelola Voucher individual print (btn-print-<CODE>) uses saved settings: card width=68mm, marginLeft=8mm, @page 80mm auto. No console errors on Settings/Vouchers pages. Defaults restored (72/0/100/6) at end.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_iteration11.py",
+    "/app/test_reports/pytest/iter11.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Settings.js: printPayload spreads all form fields as-is including strings; expiry_warning_days may still be string on first GET-init but parseInt handles it. Consider narrowing PUT payload to only expected fields.",
+    "PrintVoucher.js: uses CSS `zoom` property which is not supported in Firefox for print output; consider CSS transform:scale as fallback for wider browser compatibility.",
+    "Settings.js: 'Pengaturan Cetak' preview PrintVoucher renders twice on page (in preview + inside PrintPortal) which duplicates a QR image render; acceptable but note performance."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration11.py"
+  ],
+  "success_rate": {"backend": "100% (7/7)", "frontend": "100% (all preview/persist/test-print/kelola-print checks passed)"},
+  "test_credentials": "Admin/123456 (from /app/memory/test_credentials.md)",
+  "seed_data_creation": "None; used existing vouchers for Kelola Voucher print test.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Print settings feature works end-to-end. Notes for future flaky tests: Settings.js loads defaults synchronously (DEFAULT_SETTINGS) then fetches /api/settings via useEffect and setForm; wait for the fetched value to appear in inputs (not just for the selector) before reading. Use page.wait_for_function on the input value. Also use focus+Ctrl+A+Delete+type for number inputs; page.fill may occasionally be flaky with shadcn number inputs. Bulk 3-voucher PDF page-count verification was not executed via headless PDF; browser was used only for print-portal DOM assertions (cards + @page style) which matches the 'auto cut per page' guarantee.",
+  "rca of the issue": "N/A - no bugs found. One test iteration initially failed due to reading form values before the async GET /api/settings resolved; resolved by polling input.value with wait_for_function."
+}

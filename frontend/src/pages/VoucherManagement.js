@@ -482,7 +482,7 @@ const VoucherManagement = () => {
         </Dialog>
 
         {(bulkPrintList || selectedVoucher) && (
-          <PrintPortal testId="print-template">
+          <PrintPortal testId="print-template" settings={settings}>
             {bulkPrintList
               ? bulkPrintList.map((v, idx) => (
                   <PrintVoucher key={v.code} voucher={v} settings={settings} pageBreak={idx < bulkPrintList.length - 1} />

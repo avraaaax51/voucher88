@@ -124,6 +124,11 @@ class StoreSettings(BaseModel):
     promo_line1: str = "BELANJA LEBIH HEMAT"
     promo_line2: str = "DI TOKO ANEKA 88 MANGON"
     expiry_warning_days: int = 7
+    print_paper_mm: int = 80
+    print_width_mm: int = 72
+    print_offset_mm: float = 0
+    print_scale: int = 100
+    print_feed_mm: int = 6
 
 DEFAULT_SETTINGS = StoreSettings().model_dump()
 
@@ -718,6 +723,10 @@ async def get_settings(user: dict = Depends(get_current_user)):
 async def update_settings(data: StoreSettings, admin: dict = Depends(require_role(["admin"]))):
     if data.expiry_warning_days < 1 or data.expiry_warning_days > 365:
         raise HTTPException(status_code=400, detail="Ambang peringatan harus 1-365 hari")
+    if not 50 <= data.print_paper_mm <= 120 or not 40 <= data.print_width_mm <= data.print_paper_mm:
+        raise HTTPException(status_code=400, detail="Lebar cetak harus 40mm s/d lebar kertas (50-120mm)")
+    if not -20 <= data.print_offset_mm <= 20 or not 50 <= data.print_scale <= 150 or not 0 <= data.print_feed_mm <= 40:
+        raise HTTPException(status_code=400, detail="Nilai geser (-20..20mm), skala (50-150%) atau feed (0-40mm) tidak valid")
     payload = data.model_dump()
     await db.settings.update_one({"_id": "store"}, {"$set": payload}, upsert=True)
     return payload

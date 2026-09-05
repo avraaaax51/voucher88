@@ -314,7 +314,7 @@ const CreateVoucher = () => {
               ))}
             </div>
 
-            <PrintPortal testId="print-area">
+            <PrintPortal testId="print-area" settings={settings}>
               {createdVouchers.map((voucher, idx) => (
                 <PrintVoucher key={voucher.code} voucher={voucher} settings={settings} pageBreak={idx < createdVouchers.length - 1} />
               ))}
