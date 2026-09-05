@@ -282,37 +282,53 @@ const CreateVoucher = () => {
             </div>
 
             {/* Print Layout - 80mm Thermal */}
-            <div className="hidden print:block">
+            <div className="print-area hidden print:block" data-testid="print-area">
               {createdVouchers.map((voucher, idx) => (
                 <div
                   key={voucher.code}
-                  className="w-[300px] mx-auto p-4 bg-white text-black border border-black mb-4"
-                  style={{ pageBreakAfter: "always" }}
+                  style={{ 
+                    width: '80mm', 
+                    padding: '4mm', 
+                    backgroundColor: 'white', 
+                    color: 'black',
+                    fontFamily: 'sans-serif',
+                    pageBreakAfter: 'always'
+                  }}
                 >
-                  <div className="text-center">
-                    <h2 className="text-lg font-bold mb-2">VoucherKu</h2>
-                    {voucher.qr_code && (
+                  <div style={{ textAlign: 'center', borderBottom: '2px solid black', paddingBottom: '3mm', marginBottom: '3mm' }}>
+                    <h2 style={{ fontSize: '16px', fontWeight: 'bold', margin: 0 }}>VoucherKu</h2>
+                  </div>
+                  
+                  {voucher.qr_code && (
+                    <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '2mm' }}>
                       <img
                         src={`data:image/png;base64,${voucher.qr_code}`}
                         alt={`QR ${voucher.code}`}
-                        className="w-32 h-32 mx-auto mb-2"
+                        style={{ width: '30mm', height: '30mm' }}
                       />
-                    )}
-                    <p className="font-mono text-xl font-bold tracking-widest">
+                    </div>
+                  )}
+                  
+                  <div style={{ textAlign: 'center', marginBottom: '2mm' }}>
+                    <p style={{ fontFamily: 'monospace', fontSize: '16px', fontWeight: 'bold', letterSpacing: '2px', margin: 0 }}>
                       {voucher.code}
                     </p>
-                    <hr className="my-2 border-black" />
-                    <p className="font-medium">{voucher.title}</p>
-                    <p className="text-2xl font-bold my-2">
+                  </div>
+                  
+                  <div style={{ borderTop: '1px solid black', borderBottom: '1px solid black', padding: '2mm 0', marginBottom: '2mm', textAlign: 'center' }}>
+                    <p style={{ fontSize: '12px', fontWeight: '500', margin: 0 }}>{voucher.title}</p>
+                    <p style={{ fontSize: '18px', fontWeight: 'bold', margin: '2mm 0 0 0' }}>
                       {formatCurrency(voucher.nominal)}
                     </p>
-                    {voucher.terms && (
-                      <p className="text-xs mt-2">{voucher.terms}</p>
-                    )}
-                    <hr className="my-2 border-black" />
-                    <p className="text-xs">
-                      Berlaku s/d:{" "}
-                      {new Date(voucher.expires_at).toLocaleDateString("id-ID")}
+                  </div>
+                  
+                  {voucher.terms && (
+                    <p style={{ fontSize: '9px', textAlign: 'center', margin: '0 0 2mm 0' }}>{voucher.terms}</p>
+                  )}
+                  
+                  <div style={{ textAlign: 'center', fontSize: '10px', borderTop: '1px dashed black', paddingTop: '2mm' }}>
+                    <p style={{ margin: 0 }}>
+                      Berlaku s/d: {new Date(voucher.expires_at).toLocaleDateString("id-ID")}
                     </p>
                   </div>
                 </div>

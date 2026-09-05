@@ -312,36 +312,36 @@ const VoucherManagement = () => {
           </DialogContent>
         </Dialog>
 
-        {/* Print Template (Hidden) */}
+        {/* Print Template (Hidden on screen, visible on print) */}
         {selectedVoucher && (
-          <div className="print-voucher fixed left-0 top-0" ref={printRef}>
-            <div className="w-[300px] p-4 bg-white text-black font-sans">
-              <div className="text-center border-b-2 border-black pb-3 mb-3">
-                <h1 className="text-lg font-bold">VOUCHER PROMO</h1>
-                <p className="text-sm">Nama Toko</p>
+          <div className="print-voucher hidden print:block" ref={printRef} data-testid="print-template">
+            <div style={{ width: '80mm', padding: '4mm', backgroundColor: 'white', color: 'black', fontFamily: 'sans-serif' }}>
+              <div style={{ textAlign: 'center', borderBottom: '2px solid black', paddingBottom: '3mm', marginBottom: '3mm' }}>
+                <h1 style={{ fontSize: '16px', fontWeight: 'bold', margin: 0 }}>VOUCHER PROMO</h1>
+                <p style={{ fontSize: '12px', margin: '2mm 0 0 0' }}>VoucherKu</p>
               </div>
               
-              <div className="text-center mb-3">
-                <p className="text-2xl font-bold">{formatCurrency(selectedVoucher.nominal)}</p>
-                <p className="text-sm font-medium mt-1">{selectedVoucher.title}</p>
+              <div style={{ textAlign: 'center', marginBottom: '3mm' }}>
+                <p style={{ fontSize: '20px', fontWeight: 'bold', margin: 0 }}>{formatCurrency(selectedVoucher.nominal)}</p>
+                <p style={{ fontSize: '12px', fontWeight: '500', marginTop: '2mm' }}>{selectedVoucher.title}</p>
               </div>
 
-              <div className="flex justify-center mb-3">
+              <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '3mm' }}>
                 <img
                   src={`data:image/png;base64,${selectedVoucher.qr_code}`}
                   alt="QR Code"
-                  className="w-32 h-32"
+                  style={{ width: '30mm', height: '30mm' }}
                 />
               </div>
 
-              <div className="text-center mb-3">
-                <p className="font-mono text-lg font-bold">{selectedVoucher.code}</p>
+              <div style={{ textAlign: 'center', marginBottom: '3mm' }}>
+                <p style={{ fontFamily: 'monospace', fontSize: '16px', fontWeight: 'bold', letterSpacing: '2px', margin: 0 }}>{selectedVoucher.code}</p>
               </div>
 
-              <div className="border-t-2 border-black pt-3 text-xs text-center">
-                <p>Berlaku s/d: {formatDate(selectedVoucher.expires_at)}</p>
+              <div style={{ borderTop: '2px solid black', paddingTop: '3mm', textAlign: 'center', fontSize: '10px' }}>
+                <p style={{ margin: 0 }}>Berlaku s/d: {formatDate(selectedVoucher.expires_at)}</p>
                 {selectedVoucher.terms && (
-                  <p className="mt-1 text-[10px]">{selectedVoucher.terms}</p>
+                  <p style={{ marginTop: '2mm', fontSize: '9px' }}>{selectedVoucher.terms}</p>
                 )}
               </div>
             </div>
