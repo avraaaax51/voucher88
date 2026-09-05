@@ -8,6 +8,7 @@ import VoucherManagement from "./pages/VoucherManagement";
 import CreateVoucher from "./pages/CreateVoucher";
 import UserManagement from "./pages/UserManagement";
 import Reports from "./pages/Reports";
+import Settings from "./pages/Settings";
 import "./App.css";
 
 // Protected Route Component
@@ -101,6 +102,15 @@ function App() {
             element={
               <ProtectedRoute allowedRoles={ADMIN_ROLES}>
                 <Reports />
+              </ProtectedRoute>
+            }
+          />
+          
+          <Route
+            path="/admin/settings"
+            element={
+              <ProtectedRoute allowedRoles={ADMIN_ROLES}>
+                <Settings />
               </ProtectedRoute>
             }
           />

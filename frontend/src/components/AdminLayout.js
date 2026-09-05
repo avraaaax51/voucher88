@@ -18,6 +18,7 @@ import {
   Ticket,
   Users,
   BarChart3,
+  Settings as SettingsIcon,
   ScanLine,
   LogOut,
   Menu,
@@ -30,6 +31,7 @@ const navItems = [
   { href: "/admin/vouchers", label: "Kelola Voucher", icon: Ticket },
   { href: "/admin/users", label: "Kelola User", icon: Users },
   { href: "/admin/reports", label: "Laporan", icon: BarChart3 },
+  { href: "/admin/settings", label: "Pengaturan", icon: SettingsIcon },
 ];
 
 const AdminLayout = ({ children }) => {

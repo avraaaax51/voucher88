@@ -24,25 +24,18 @@ const formatApiError = (detail) => {
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [token, setToken] = useState(localStorage.getItem("token"));
 
   // Check auth on mount
   const checkAuth = useCallback(async () => {
     try {
-      const headers = token ? { Authorization: `Bearer ${token}` } : {};
-      const { data } = await axios.get(`${API_URL}/api/auth/me`, {
-        withCredentials: true,
-        headers,
-      });
+      const { data } = await axios.get(`${API_URL}/api/auth/me`, { withCredentials: true });
       setUser(data);
     } catch (error) {
       setUser(null);
-      setToken(null);
-      localStorage.removeItem("token");
     } finally {
       setLoading(false);
     }
-  }, [token]);
+  }, []);
 
   useEffect(() => {
     checkAuth();
@@ -56,10 +49,6 @@ export const AuthProvider = ({ children }) => {
         { withCredentials: true }
       );
       setUser(data);
-      if (data.token) {
-        setToken(data.token);
-        localStorage.setItem("token", data.token);
-      }
       return { success: true, user: data };
     } catch (error) {
       const message = formatApiError(error.response?.data?.detail);
@@ -75,10 +64,6 @@ export const AuthProvider = ({ children }) => {
         { withCredentials: true }
       );
       setUser(data);
-      if (data.token) {
-        setToken(data.token);
-        localStorage.setItem("token", data.token);
-      }
       return { success: true, user: data };
     } catch (error) {
       const message = formatApiError(error.response?.data?.detail);
@@ -93,20 +78,13 @@ export const AuthProvider = ({ children }) => {
       // ignore network errors on logout; local state is cleared below
     } finally {
       setUser(null);
-      setToken(null);
-      localStorage.removeItem("token");
     }
   };
 
-  const getAuthHeaders = useCallback(
-    () => (token ? { Authorization: `Bearer ${token}` } : {}),
-    [token]
-  );
-
   const value = useMemo(
-    () => ({ user, loading, login, pinLogin, logout, token, getAuthHeaders, checkAuth }),
+    () => ({ user, loading, login, pinLogin, logout, checkAuth }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [user, loading, token, getAuthHeaders, checkAuth]
+    [user, loading, checkAuth]
   );
 
   return (

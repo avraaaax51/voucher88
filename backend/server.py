@@ -65,10 +65,6 @@ def create_refresh_token(user_id: str) -> str:
 async def get_current_user(request: Request) -> dict:
     token = request.cookies.get("access_token")
     if not token:
-        auth_header = request.headers.get("Authorization", "")
-        if auth_header.startswith("Bearer "):
-            token = auth_header[7:]
-    if not token:
         raise HTTPException(status_code=401, detail="Tidak terautentikasi")
     try:
         payload = jwt.decode(token, get_jwt_secret(), algorithms=[JWT_ALGORITHM])
@@ -116,6 +112,21 @@ class VoucherCreate(BaseModel):
     terms: str = ""
     expires_at: str
     quantity: int = 1
+    prefix: str = ""
+
+class StoreSettings(BaseModel):
+    store_prefix: str = "Toko"
+    store_name: str = "ANEKA 88"
+    store_branch: str = "MANGON"
+    promo_line1: str = "BELANJA LEBIH HEMAT"
+    promo_line2: str = "DI TOKO ANEKA 88 MANGON"
+    expiry_warning_days: int = 7
+
+DEFAULT_SETTINGS = StoreSettings().model_dump()
+
+async def get_settings_doc() -> dict:
+    doc = await db.settings.find_one({"_id": "store"}, {"_id": 0})
+    return {**DEFAULT_SETTINGS, **(doc or {})}
 
 class VoucherRedeem(BaseModel):
     code: str
@@ -130,11 +141,11 @@ class UserResponse(BaseModel):
         populate_by_name = True
 
 # Generate unique voucher code: 7 alfanumerik campuran + 3 digit urutan (tanpa tanda hubung)
-def generate_voucher_code(sequence: int) -> str:
+def generate_voucher_code(sequence: int, prefix: str = "") -> str:
     chars = string.ascii_uppercase + string.digits
-    random_part = ''.join(secrets.choice(chars) for _ in range(7))
+    random_part = ''.join(secrets.choice(chars) for _ in range(7 - len(prefix)))
     sequence_part = str(sequence).zfill(3)
-    return f"{random_part}{sequence_part}"
+    return f"{prefix}{random_part}{sequence_part}"
 
 # Generate QR Code as base64
 def generate_qr_base64(data: str) -> str:
@@ -276,8 +287,7 @@ async def login(data: UserLogin, response: Response):
         "_id": str(user["_id"]),
         "email": user["email"],
         "name": user["name"],
-        "role": user["role"],
-        "token": access_token
+        "role": user["role"]
     }
 
 @api_router.post("/auth/pin-login")
@@ -306,8 +316,7 @@ async def pin_login(data: PinLogin, response: Response):
         "_id": str(matched_user["_id"]),
         "email": matched_user["email"],
         "name": matched_user["name"],
-        "role": matched_user["role"],
-        "token": access_token
+        "role": matched_user["role"]
     }
 
 @api_router.get("/auth/me")
@@ -362,6 +371,11 @@ async def get_users(admin: dict = Depends(require_role(["admin"]))):
 @api_router.post("/vouchers")
 async def create_vouchers(data: VoucherCreate, admin: dict = Depends(require_role(["admin"]))):
     """Create vouchers (admin only)"""
+    prefix = data.prefix.strip().upper()
+    if prefix and (not prefix.isalnum() or not prefix.isascii()):
+        raise HTTPException(status_code=400, detail="Prefix hanya boleh huruf dan angka")
+    if len(prefix) > 4:
+        raise HTTPException(status_code=400, detail="Prefix maksimal 4 karakter (kode tetap 10 karakter)")
     
     # Get current sequence
     counter = await db.counters.find_one_and_update(
@@ -376,7 +390,7 @@ async def create_vouchers(data: VoucherCreate, admin: dict = Depends(require_rol
     
     vouchers = []
     for i in range(data.quantity):
-        code = generate_voucher_code(start_seq + i)
+        code = generate_voucher_code(start_seq + i, prefix)
         qr_base64 = generate_qr_base64(code)
         
         voucher = {
@@ -560,6 +574,12 @@ async def get_stats(admin: dict = Depends(require_role(["admin"]))):
         ]
     })
     
+    settings = await get_settings_doc()
+    warn_until = now + timedelta(days=settings["expiry_warning_days"])
+    expiring_soon = await db.vouchers.count_documents({
+        "status": "active", "expires_at": {"$gt": now, "$lte": warn_until}
+    })
+    
     # Total nominal redeemed
     pipeline = [
         {"$match": {"status": "redeemed"}},
@@ -585,10 +605,24 @@ async def get_stats(admin: dict = Depends(require_role(["admin"]))):
         "active": active,
         "redeemed": redeemed,
         "expired": expired,
+        "expiring_soon": expiring_soon,
+        "expiry_warning_days": settings["expiry_warning_days"],
         "total_nominal_redeemed": total_nominal_redeemed,
         "today_redeemed": today_redeemed,
         "recent_redemptions": recent
     }
+
+@api_router.get("/settings")
+async def get_settings(user: dict = Depends(get_current_user)):
+    return await get_settings_doc()
+
+@api_router.put("/settings")
+async def update_settings(data: StoreSettings, admin: dict = Depends(require_role(["admin"]))):
+    if data.expiry_warning_days < 1 or data.expiry_warning_days > 365:
+        raise HTTPException(status_code=400, detail="Ambang peringatan harus 1-365 hari")
+    payload = data.model_dump()
+    await db.settings.update_one({"_id": "store"}, {"$set": payload}, upsert=True)
+    return payload
 
 @api_router.get("/reports/daily")
 async def get_daily_report(

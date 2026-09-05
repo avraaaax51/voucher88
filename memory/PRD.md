@@ -113,3 +113,13 @@ Semua fitur inti sudah diimplementasi dan diuji.
 - useCallback + deps lengkap di AdminDashboard, VoucherManagement, UserManagement, Reports, CashierMode (scanner memakai ref untuk handleScan).
 - AuthContext: getAuthHeaders useCallback, context value useMemo, console.error dihapus. App.js: konstanta ADMIN_ROLES/CASHIER_ROLES.
 - Ditolak/ditunda: pindah token ke httpOnly cookie (perubahan auth, butuh persetujuan user + playbook); temuan Python `is` adalah false positive (`is None`); refactor komponen besar ditunda.
+
+## Update 2026-09-05 — 4 fitur baru (testing iteration_4: PASS 17/17 backend + frontend)
+- Cookie-only auth: token dihapus dari respons login/pin-login, Bearer fallback dihapus, localStorage tidak dipakai.
+- Pengaturan toko (/admin/settings, GET/PUT /api/settings, koleksi `settings` _id "store"): store_prefix, store_name, store_branch, promo_line1/2, expiry_warning_days. PrintVoucher membaca settings (hook useStoreSettings), preview live di halaman Pengaturan.
+- Peringatan kedaluwarsa: stats.expiring_soon + kartu dashboard, badge amber "Segera Kadaluarsa · N hari" di Kelola Voucher.
+- Prefix kode massal: field `prefix` (maks 4 alnum), kode tetap 10 karakter = prefix + acak + 3 digit serial.
+
+## Backlog
+- P1 Export laporan CSV/PDF (tombol Export CSV sudah ada di Laporan — cek fungsinya)
+- P2 Refactor komponen besar (CashierMode, Reports, UserManagement), uji atomicity redemption

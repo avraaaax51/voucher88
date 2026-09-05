@@ -21,7 +21,7 @@ import {
 const API_URL = process.env.REACT_APP_BACKEND_URL;
 
 const CashierMode = () => {
-  const { user, logout, getAuthHeaders } = useAuth();
+  const { user, logout } = useAuth();
   const navigate = useNavigate();
   
   const [mode, setMode] = useState("scan"); // scan or manual
@@ -91,7 +91,6 @@ const CashierMode = () => {
         { code: code.trim() },
         {
           withCredentials: true,
-          headers: getAuthHeaders(),
         }
       );
       

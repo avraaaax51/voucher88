@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import AdminLayout from "../components/AdminLayout";
 import { PrintVoucher } from "../components/PrintVoucher";
+import { useStoreSettings } from "../hooks/useStoreSettings";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
@@ -14,6 +15,7 @@ const API_URL = process.env.REACT_APP_BACKEND_URL;
 
 const CreateVoucher = () => {
   const navigate = useNavigate();
+  const settings = useStoreSettings();
   const [loading, setLoading] = useState(false);
   const [createdVouchers, setCreatedVouchers] = useState([]);
   const [formData, setFormData] = useState({
@@ -22,6 +24,7 @@ const CreateVoucher = () => {
     terms: "",
     expires_at: "",
     quantity: 1,
+    prefix: "",
   });
 
   const handleChange = (e) => {
@@ -179,6 +182,22 @@ const CreateVoucher = () => {
                       Maksimal 1000 voucher per batch
                     </p>
                   </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="prefix">Prefix Kode (opsional)</Label>
+                    <Input
+                      id="prefix"
+                      name="prefix"
+                      placeholder="mis. RM"
+                      value={formData.prefix}
+                      onChange={(e) => setFormData((p) => ({ ...p, prefix: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 4) }))}
+                      maxLength={4}
+                      data-testid="input-voucher-prefix"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Maks 4 huruf/angka. Kode tetap 10 karakter, contoh:{" "}
+                      <span className="font-mono">{(formData.prefix || "") + "X".repeat(7 - (formData.prefix || "").length)}001</span>
+                    </p>
+                  </div>
                 </div>
 
                 <div className="flex justify-end gap-3 pt-4">
@@ -237,6 +256,7 @@ const CreateVoucher = () => {
                           terms: "",
                           expires_at: "",
                           quantity: 1,
+                          prefix: "",
                         });
                       }}
                       data-testid="btn-create-more"
@@ -284,7 +304,7 @@ const CreateVoucher = () => {
 
             <div className="print-area" data-testid="print-area" style={{ display: 'none' }}>
               {createdVouchers.map((voucher, idx) => (
-                <PrintVoucher key={voucher.code} voucher={voucher} pageBreak={idx < createdVouchers.length - 1} />
+                <PrintVoucher key={voucher.code} voucher={voucher} settings={settings} pageBreak={idx < createdVouchers.length - 1} />
               ))}
             </div>
           </div>

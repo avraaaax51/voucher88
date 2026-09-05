@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Link } from "react-router-dom";
 import axios from "axios";
-import { useAuth } from "../context/AuthContext";
 import AdminLayout from "../components/AdminLayout";
 import { PrintVoucher } from "../components/PrintVoucher";
+import { useStoreSettings, isExpiringSoon } from "../hooks/useStoreSettings";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Badge } from "../components/ui/badge";
@@ -35,7 +35,7 @@ import {
 const API_URL = process.env.REACT_APP_BACKEND_URL;
 
 const VoucherManagement = () => {
-  const { getAuthHeaders } = useAuth();
+  const settings = useStoreSettings();
   const [vouchers, setVouchers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -49,7 +49,6 @@ const VoucherManagement = () => {
       const params = statusFilter !== "all" ? `?status=${statusFilter}` : "";
       const { data } = await axios.get(`${API_URL}/api/vouchers${params}`, {
         withCredentials: true,
-        headers: getAuthHeaders(),
       });
       setVouchers(data.vouchers || []);
     } catch (error) {
@@ -57,7 +56,7 @@ const VoucherManagement = () => {
     } finally {
       setLoading(false);
     }
-  }, [statusFilter, getAuthHeaders]);
+  }, [statusFilter]);
 
   useEffect(() => {
     fetchVouchers();
@@ -88,6 +87,14 @@ const VoucherManagement = () => {
     }
     if (voucher.status === "expired" || expiresAt < now) {
       return <Badge className="bg-red-100 text-red-700 hover:bg-red-100">Kadaluarsa</Badge>;
+    }
+    if (isExpiringSoon(voucher, settings.expiry_warning_days)) {
+      const days = Math.ceil((expiresAt - now) / 86400000);
+      return (
+        <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100" data-testid={`badge-expiring-${voucher.code}`}>
+          Segera Kadaluarsa · {days} hari
+        </Badge>
+      );
     }
     return <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100">Aktif</Badge>;
   };
@@ -316,7 +323,7 @@ const VoucherManagement = () => {
 
         {selectedVoucher && (
           <div className="print-voucher" ref={printRef} data-testid="print-template" style={{ display: 'none' }}>
-            <PrintVoucher voucher={selectedVoucher} />
+            <PrintVoucher voucher={selectedVoucher} settings={settings} />
           </div>
         )}
       </div>

@@ -1,3 +1,5 @@
+import { DEFAULT_SETTINGS } from "../hooks/useStoreSettings";
+
 const F = "Arial, Helvetica, sans-serif";
 
 const formatExpiry = (iso) =>
@@ -18,10 +20,14 @@ const Notch = ({ side }) => (
   />
 );
 
-export const PrintVoucher = ({ voucher, pageBreak = false }) => {
-  const termsLines = (voucher.terms || "BELANJA LEBIH HEMAT\nDI TOKO ANEKA 88 MANGON")
+export const PrintVoucher = ({ voucher, settings = {}, pageBreak = false }) => {
+  const s = { ...DEFAULT_SETTINGS, ...settings };
+  const termsLines = (voucher.terms || `${s.promo_line1}\n${s.promo_line2}`)
     .split("\n")
     .filter(Boolean);
+  const nameMatch = s.store_name.trim().match(/^(.*?)\s*(\d+)$/);
+  const nameText = nameMatch ? nameMatch[1] : s.store_name;
+  const nameNum = nameMatch ? nameMatch[2] : "";
 
   return (
     <div
@@ -38,13 +44,13 @@ export const PrintVoucher = ({ voucher, pageBreak = false }) => {
     >
       <div style={{ border: "0.4mm solid #000", borderRadius: "2.5mm", padding: "5mm 3.5mm 4mm", boxSizing: "border-box" }}>
         <div style={{ textAlign: "center", lineHeight: 1 }}>
-          <div style={{ fontSize: "18px", fontWeight: 700 }}>Toko</div>
+          <div style={{ fontSize: "18px", fontWeight: 700 }}>{s.store_prefix}</div>
           <div style={{ fontSize: "40px", fontWeight: 900, letterSpacing: "-1px", marginTop: "1mm" }}>
-            ANEKA<span style={{ fontSize: "34px", marginLeft: "1mm" }}>88</span>
+            {nameText}{nameNum && <span style={{ fontSize: "34px", marginLeft: "1mm" }}>{nameNum}</span>}
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: "2mm", marginTop: "1.5mm" }}>
             <span style={{ flex: 1, height: "0.5mm", background: "#000" }} />
-            <span style={{ fontSize: "12px", fontWeight: 900, letterSpacing: "2px" }}>MANGON</span>
+            <span style={{ fontSize: "12px", fontWeight: 900, letterSpacing: "2px" }}>{s.store_branch}</span>
             <span style={{ flex: 1, height: "0.5mm", background: "#000" }} />
           </div>
         </div>
@@ -78,7 +84,7 @@ export const PrintVoucher = ({ voucher, pageBreak = false }) => {
           </div>
         </div>
 
-        {voucher.qr_code && (
+        {voucher.qr_code ? (
           <div style={{ display: "flex", justifyContent: "center", margin: "5mm 0" }}>
             <img
               src={`data:image/png;base64,${voucher.qr_code}`}
@@ -86,6 +92,8 @@ export const PrintVoucher = ({ voucher, pageBreak = false }) => {
               style={{ width: "40mm", height: "40mm", display: "block" }}
             />
           </div>
+        ) : (
+          <div style={{ width: "40mm", height: "40mm", margin: "5mm auto", border: "0.4mm dashed #000", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "10px" }}>QR CODE</div>
         )}
 
         <div
