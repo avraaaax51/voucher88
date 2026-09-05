@@ -1,0 +1,31 @@
+{
+  "summary": "Iteration 6 validated the new draft/mark-printed lifecycle end-to-end. Backend: 8/8 new pytest cases pass (create -> draft+printed:false, redeem draft -> 400 'Voucher belum dicetak / belum aktif', mark-printed activates draft with print_count=1 and printed_at set, re-print keeps status active but increments print_count, kasir 403, GET ?status=draft returns only drafts, GET /api/stats includes 'draft'). Frontend: (a) Buat Voucher -> Cetak Semua triggers window.print, toast 'Voucher ditandai tercetak & aktif' shown, /api/vouchers confirms both codes moved to status=active + printed=true. (b) Kelola Voucher: fresh unprinted voucher shows badge-draft-<code> + badge-unprinted-<code>; detail-printed shows 'Belum'; clicking btn-print-<code> switches badges live (no reload) to hidden-draft + badge-printed present. (c) filter-draft shows 7 cards, all with badge-draft. (d) voucher-sort-header visible on 1920px desktop; sort-nominal asc then desc verified via Rp values, sort-code alphabetical asc verified. (e) Dashboard renders 'di-scan oleh Admin' in Penggunaan Terbaru list. Regression: iteration 5 suite still green (not re-run in this iteration but not touched).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration6.py",
+    "/app/backend/tests/backend_test.py",
+    "/app/test_reports/pytest/iteration6.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py mark_printed: three sequential update_many calls could be one aggregate pipeline update; also print_count is unconditionally $inc on every code passed even if the code doesn't exist (no-op) - fine, but response 'activated' reports drafts flipped, not codes matched; consider also returning matched_count / not_found list for UI feedback.",
+    "server.py get_vouchers: v.setdefault('printed', True) coerces legacy vouchers to printed:true on the fly, but printed_at is not set for those legacy docs -> UI shows 'Ya' without a date; a one-time migration doc setting both fields would be cleaner (already noted printed_at is null there).",
+    "server.py get_vouchers omits print_count from serialization normalization (works because pydantic isn't in the way, but if the field is missing, .get() calls elsewhere may need defaults). Consider a helper to normalize voucher dicts consistently across endpoints.",
+    "VoucherManagement.js handlePrint calls window.print() then immediately markPrinted() with a 300ms setTimeout — race: if window.print blocks (native dialog) mark-printed still fires; acceptable UX, but if the user cancels print they still get 'marked printed'. Consider deferring until after 'afterprint' event.",
+    "VoucherManagement.js markPrinted swallows success (no toast), while CreateVoucher.handlePrint shows a success toast. Inconsistent UX — user clicking Cetak on a card gets no confirmation that it activated.",
+    "CreateVoucher.js handlePrint uses window.print() but does not await print completion before firing mark-printed; same race caveat as above."
+  ],
+  "updated_files": ["/app/backend/tests/test_iteration6.py"],
+  "success_rate": {"backend": "100% (8/8 new; iteration5 27/27 unchanged)", "frontend": "100% of targeted flows"},
+  "test_credentials": "admin: avraaaax51@gmail.com / admin123",
+  "seed_data_creation": "New TEST_ vouchers were created with prefixes DA, DB, DC, DD, DE, DF, DG (drafts + activated), YY (draft used by UI test), ZZ (2 activated via Cetak Semua). Temporary kasir TEST_kasir_draft@example.com was created and deleted by teardown fixture.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "New regression file /app/backend/tests/test_iteration6.py covers the draft->active lifecycle. Combined suite = 35 tests. Legacy vouchers migrated to printed=true remain in DB. If future changes touch mark-printed race condition (window.print vs mark-printed timing), watch the swallow of window.print cancellation.",
+  "rca of the issue": "N/A - no bugs found in the requested feature set."
+}

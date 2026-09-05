@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Comic+Neue:ital,wght@0,300;0,400;0,700;1,300&family=Patrick+Hand&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Comic+Neue:ital,wght@0,400;0,700;1,400&family=Patrick+Hand&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -13,7 +13,8 @@
 body {
     margin: 0;
     font-family: var(--font-body);
-    font-weight: 300;
+    font-weight: 400;
+    color: var(--ink);
     letter-spacing: 0.01em;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
@@ -25,9 +26,13 @@ h1, h2, h3, h4, h5, h6 {
     letter-spacing: 0.02em;
 }
 
-strong, b, .font-semibold, .font-bold, .font-extrabold, .font-black {
+strong, b, .font-medium, .font-semibold, .font-bold, .font-extrabold, .font-black {
     font-weight: 700;
 }
+h1 { font-size: 2.25rem; }
+.text-muted-foreground { color: #4b4f58 !important; }
+.text-xs { font-size: 0.8rem; }
+.text-sm { font-size: 0.925rem; }
 
 /* Comic-lite: thin ink borders + soft offset shadows */
 .rounded-xl.border.bg-card {

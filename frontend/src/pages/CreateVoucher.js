@@ -63,8 +63,20 @@ const CreateVoucher = () => {
     }
   };
 
-  const handlePrint = () => {
+  const handlePrint = async () => {
     window.print();
+    try {
+      await fetch(`${API_URL}/api/vouchers/mark-printed`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ codes: createdVouchers.map((v) => v.code) }),
+      });
+      setCreatedVouchers((prev) => prev.map((v) => ({ ...v, status: "active", printed: true })));
+      toast.success("Voucher ditandai tercetak & aktif");
+    } catch {
+      toast.error("Gagal menandai voucher tercetak");
+    }
   };
 
   const formatCurrency = (amount) => {

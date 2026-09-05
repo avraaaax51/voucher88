@@ -135,6 +135,9 @@ class UserReset(BaseModel):
 class VoucherRedeem(BaseModel):
     code: str
 
+class MarkPrinted(BaseModel):
+    codes: list[str]
+
 class UserResponse(BaseModel):
     id: str = Field(alias="_id")
     email: str
@@ -433,7 +436,9 @@ async def create_vouchers(data: VoucherCreate, admin: dict = Depends(require_rol
             "nominal": data.nominal,
             "terms": data.terms,
             "qr_code": qr_base64,
-            "status": "active",
+            "status": "draft",
+            "printed": False,
+            "printed_at": None,
             "created_at": datetime.now(timezone.utc),
             "expires_at": expires_at,
             "created_by": admin["_id"],
@@ -451,6 +456,29 @@ async def create_vouchers(data: VoucherCreate, admin: dict = Depends(require_rol
         v["expires_at"] = v["expires_at"].isoformat()
     
     return {"message": f"Berhasil membuat {data.quantity} voucher", "vouchers": vouchers}
+
+@api_router.delete("/vouchers/{voucher_id}")
+async def delete_voucher(voucher_id: str, admin: dict = Depends(require_role(["admin"]))):
+    result = await db.vouchers.delete_one({"_id": ObjectId(voucher_id)})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Voucher tidak ditemukan")
+    return {"message": "Voucher berhasil dihapus"}
+
+@api_router.post("/vouchers/mark-printed")
+async def mark_printed(data: MarkPrinted, admin: dict = Depends(require_role(["admin"]))):
+    """Mark vouchers as printed; draft vouchers become active"""
+    codes = [c.upper().strip() for c in data.codes if c]
+    now = datetime.now(timezone.utc)
+    activated = await db.vouchers.update_many(
+        {"code": {"$in": codes}, "status": "draft"},
+        {"$set": {"status": "active", "printed": True, "printed_at": now}}
+    )
+    await db.vouchers.update_many(
+        {"code": {"$in": codes}, "printed": {"$ne": True}},
+        {"$set": {"printed": True, "printed_at": now}}
+    )
+    await db.vouchers.update_many({"code": {"$in": codes}}, {"$inc": {"print_count": 1}})
+    return {"message": f"{len(codes)} voucher ditandai tercetak", "activated": activated.modified_count}
 
 @api_router.get("/vouchers")
 async def get_vouchers(
@@ -481,6 +509,9 @@ async def get_vouchers(
             v["expires_at"] = v["expires_at"].isoformat() if isinstance(v["expires_at"], datetime) else v["expires_at"]
         if v.get("redeemed_at"):
             v["redeemed_at"] = v["redeemed_at"].isoformat() if isinstance(v["redeemed_at"], datetime) else v["redeemed_at"]
+        if isinstance(v.get("printed_at"), datetime):
+            v["printed_at"] = v["printed_at"].isoformat()
+        v.setdefault("printed", True)
     
     return {"vouchers": vouchers, "total": total, "page": page, "limit": limit}
 
@@ -529,6 +560,8 @@ async def redeem_voucher(data: VoucherRedeem, request: Request, user: dict = Dep
             raise HTTPException(status_code=400, detail="Voucher sudah pernah digunakan")
         if voucher["status"] == "expired":
             raise HTTPException(status_code=400, detail="Voucher sudah kadaluarsa")
+        if voucher["status"] == "draft":
+            raise HTTPException(status_code=400, detail="Voucher belum dicetak / belum aktif")
         raise HTTPException(status_code=400, detail="Voucher tidak dapat digunakan")
     
     # Check expiration
@@ -604,6 +637,7 @@ async def get_stats(admin: dict = Depends(require_role(["admin"]))):
     now = datetime.now(timezone.utc)
     
     total = await db.vouchers.count_documents({})
+    draft = await db.vouchers.count_documents({"status": "draft"})
     active = await db.vouchers.count_documents({"status": "active", "expires_at": {"$gt": now}})
     redeemed = await db.vouchers.count_documents({"status": "redeemed"})
     expired = await db.vouchers.count_documents({
@@ -641,6 +675,7 @@ async def get_stats(admin: dict = Depends(require_role(["admin"]))):
     
     return {
         "total": total,
+        "draft": draft,
         "active": active,
         "redeemed": redeemed,
         "expired": expired,

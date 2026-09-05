@@ -29,6 +29,10 @@ import {
   Printer,
   Eye,
   Filter,
+  Trash2,
+  ArrowUp,
+  ArrowDown,
+  ArrowUpDown,
   Ticket,
 } from "lucide-react";
 
@@ -40,6 +44,7 @@ const VoucherManagement = () => {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [sort, setSort] = useState({ key: "created_at", dir: "desc" });
   const [selectedVoucher, setSelectedVoucher] = useState(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const printRef = useRef(null);
@@ -92,24 +97,73 @@ const VoucherManagement = () => {
       const days = Math.ceil((expiresAt - now) / 86400000);
       return (
         <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100" data-testid={`badge-expiring-${voucher.code}`}>
-          Segera Kadaluarsa · {days} hari
+          Segera Exp · {days} hari
         </Badge>
       );
     }
     return <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100">Aktif</Badge>;
   };
 
-  const filteredVouchers = vouchers.filter((v) =>
-    v.code.toLowerCase().includes(search.toLowerCase()) ||
-    v.title.toLowerCase().includes(search.toLowerCase())
-  );
+  const STATUS_ORDER = { draft: 0, active: 1, redeemed: 2, expired: 3 };
+  const sortValue = (v, key) => {
+    if (key === "status") return STATUS_ORDER[v.status] ?? 9;
+    if (key === "printed") return v.printed ? 1 : 0;
+    if (key === "nominal") return v.nominal;
+    if (key === "expires_at" || key === "created_at") return new Date(v[key]).getTime();
+    return String(v[key] || "").toLowerCase();
+  };
+
+  const filteredVouchers = vouchers
+    .filter((v) =>
+      v.code.toLowerCase().includes(search.toLowerCase()) ||
+      v.title.toLowerCase().includes(search.toLowerCase())
+    )
+    .sort((a, b) => {
+      const x = sortValue(a, sort.key), y = sortValue(b, sort.key);
+      const cmp = x < y ? -1 : x > y ? 1 : 0;
+      return sort.dir === "asc" ? cmp : -cmp;
+    });
+
+  const toggleSort = (key) =>
+    setSort((s) => ({ key, dir: s.key === key && s.dir === "asc" ? "desc" : "asc" }));
+
+  const SORT_COLUMNS = [
+    { key: "code", label: "Kode", className: "w-[90px]" },
+    { key: "title", label: "Judul", className: "w-[60px]" },
+    { key: "nominal", label: "Nominal", className: "w-[62px]" },
+    { key: "status", label: "Status", className: "w-[150px]" },
+    { key: "printed", label: "Dicetak", className: "flex-1" },
+    { key: "expires_at", label: "Kadaluarsa", className: "w-[132px]" },
+  ];
+
+  const markPrinted = async (codes) => {
+    try {
+      await axios.post(`${API_URL}/api/vouchers/mark-printed`, { codes }, { withCredentials: true });
+      setVouchers((prev) =>
+        prev.map((v) => (codes.includes(v.code) ? { ...v, printed: true, status: v.status === "draft" ? "active" : v.status } : v))
+      );
+    } catch {
+      toast.error("Gagal menandai voucher tercetak");
+    }
+  };
 
   const handlePrint = (voucher) => {
     setSelectedVoucher(voucher);
-    // Give more time for React to render the print template
     setTimeout(() => {
       window.print();
+      markPrinted([voucher.code]);
     }, 300);
+  };
+
+  const handleDelete = async (voucher) => {
+    if (!window.confirm(`Hapus voucher ${voucher.code} (${formatCurrency(voucher.nominal)})? Tindakan ini tidak bisa dibatalkan.`)) return;
+    try {
+      await axios.delete(`${API_URL}/api/vouchers/${voucher._id}`, { withCredentials: true });
+      setVouchers((prev) => prev.filter((v) => v._id !== voucher._id));
+      toast.success("Voucher berhasil dihapus");
+    } catch (err) {
+      toast.error(err.response?.data?.detail || "Gagal menghapus voucher");
+    }
   };
 
   const handleViewDetail = (voucher) => {
@@ -155,6 +209,7 @@ const VoucherManagement = () => {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Semua Status</SelectItem>
+              <SelectItem value="draft" data-testid="filter-draft">Belum Dicetak</SelectItem>
               <SelectItem value="active">Aktif</SelectItem>
               <SelectItem value="expiring" data-testid="filter-expiring">Segera Kadaluarsa</SelectItem>
               <SelectItem value="redeemed">Terpakai</SelectItem>
@@ -182,6 +237,29 @@ const VoucherManagement = () => {
           </div>
         ) : filteredVouchers.length > 0 ? (
           <div className="space-y-3">
+            <div className="hidden md:flex items-center gap-4 px-4 text-sm" data-testid="voucher-sort-header">
+              <div className="w-16 flex-shrink-0" />
+              {SORT_COLUMNS.slice(0, 3).map((c) => (
+                <button key={c.key} type="button" onClick={() => toggleSort(c.key)}
+                  className={`${c.className} flex items-center gap-1 font-bold text-left hover:underline ${sort.key === c.key ? "text-emerald-700" : ""}`}
+                  data-testid={`sort-${c.key}`}>
+                  {c.label}
+                  {sort.key === c.key ? (sort.dir === "asc" ? <ArrowUp className="w-3.5 h-3.5" /> : <ArrowDown className="w-3.5 h-3.5" />) : <ArrowUpDown className="w-3.5 h-3.5 opacity-40" />}
+                </button>
+              ))}
+              {SORT_COLUMNS.slice(3).map((c) => (
+                <button
+                  key={c.key}
+                  type="button"
+                  onClick={() => toggleSort(c.key)}
+                  className={`${c.className} flex items-center gap-1 font-bold text-left hover:underline ${sort.key === c.key ? "text-emerald-700" : ""}`}
+                  data-testid={`sort-${c.key}`}
+                >
+                  {c.label}
+                  {sort.key === c.key ? (sort.dir === "asc" ? <ArrowUp className="w-3.5 h-3.5" /> : <ArrowDown className="w-3.5 h-3.5" />) : <ArrowUpDown className="w-3.5 h-3.5 opacity-40" />}
+                </button>
+              ))}
+            </div>
             {filteredVouchers.map((voucher) => (
               <Card 
                 key={voucher._id} 
@@ -189,7 +267,7 @@ const VoucherManagement = () => {
                 data-testid={`voucher-card-${voucher.code}`}
               >
                 <CardContent className="p-4">
-                  <div className="flex items-center gap-4">
+                  <div className="flex flex-wrap items-center gap-3 sm:gap-4">
                     {/* QR Preview */}
                     <div className="w-16 h-16 bg-white border rounded flex-shrink-0 overflow-hidden">
                       <img
@@ -200,24 +278,14 @@ const VoucherManagement = () => {
                     </div>
 
                     {/* Info */}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="font-mono font-bold text-sm">{voucher.code}</span>
-                        {getStatusBadge(voucher)}
-                      </div>
+                    <div className="flex-1 min-w-0 sm:flex-none sm:w-[220px]">
+                      <span className="font-mono font-bold text-sm block">{voucher.code}</span>
                       <p className="text-sm text-muted-foreground truncate">{voucher.title}</p>
-                      <div className="flex items-center gap-4 mt-1 text-sm">
-                        <span className="font-semibold text-emerald-600">
-                          {formatCurrency(voucher.nominal)}
-                        </span>
-                        <span className="text-muted-foreground">
-                          Exp: {formatDate(voucher.expires_at)}
-                        </span>
-                      </div>
+                      <p className="font-semibold text-emerald-600 text-sm mt-0.5">{formatCurrency(voucher.nominal)}</p>
                     </div>
 
                     {/* Actions */}
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1 sm:order-last">
                       <Button
                         variant="ghost"
                         size="icon"
@@ -234,6 +302,29 @@ const VoucherManagement = () => {
                       >
                         <Printer className="w-4 h-4" />
                       </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="text-red-600 hover:text-red-700"
+                        onClick={() => handleDelete(voucher)}
+                        data-testid={`btn-delete-${voucher.code}`}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+
+                    {/* Badges: fixed slots */}
+                    <div className="w-full sm:w-auto sm:flex-1 grid grid-cols-[150px_1fr] items-center gap-2 text-xs sm:text-sm [&_*]:whitespace-nowrap">
+                        <span data-testid={`status-slot-${voucher.code}`}>
+                          {getStatusBadge(voucher)}
+                        </span>
+                        <span data-testid={`print-slot-${voucher.code}`}>
+                          {voucher.printed ? (
+                            <Badge variant="outline" className="gap-1" data-testid={`badge-printed-${voucher.code}`}><Printer className="w-3 h-3" /> Sudah dicetak</Badge>
+                          ) : (
+                            <Badge variant="outline" className="gap-1 border-dashed text-gray-600" data-testid={`badge-unprinted-${voucher.code}`}><Printer className="w-3 h-3" /> Belum dicetak</Badge>
+                          )}
+                        </span>
                     </div>
                   </div>
                 </CardContent>
@@ -291,6 +382,10 @@ const VoucherManagement = () => {
                     <span className="font-semibold text-emerald-600">
                       {formatCurrency(selectedVoucher.nominal)}
                     </span>
+                  </div>
+                  <div className="flex justify-between py-2 border-b">
+                    <span className="text-muted-foreground">Dicetak</span>
+                    <span data-testid="detail-printed">{selectedVoucher.printed ? (selectedVoucher.printed_at ? `Ya · ${formatDate(selectedVoucher.printed_at)}` : "Ya") : "Belum"}</span>
                   </div>
                   <div className="flex justify-between py-2 border-b">
                     <span className="text-muted-foreground">Berlaku Sampai</span>

@@ -133,3 +133,8 @@ Semua fitur inti sudah diimplementasi dan diuji.
 - Filter "Segera Kadaluarsa" (status=expiring) di Kelola Voucher, dihitung backend dari expiry_warning_days.
 - Mode Kasir: stempel komik besar BERHASIL!/DITOLAK! (.comic-stamp, animasi stamp-in).
 - Kelola User: DELETE /api/users/{id} (tak bisa hapus diri/admin terakhir), PUT /api/users/{id}/reset (password/PIN). Akun uji TEST_kasir dihapus.
+
+## Update 2026-09-05 — Rapikan mobile + hapus voucher + laporan
+- Kartu voucher: slot status (150px) & slot cetak tetap, badge "Belum Aktif" dihapus (draft hanya tampil "Belum dicetak"), teks Exp disembunyikan dari list, tombol hapus (DELETE /api/vouchers/{id}, admin, confirm).
+- Laporan: kartu Total Nominal dipindah ke atas, besar & kuning menonjol.
+- Voucher baru status draft → aktif setelah dicetak (mark-printed). Header sort kolom di Kelola Voucher (desktop).

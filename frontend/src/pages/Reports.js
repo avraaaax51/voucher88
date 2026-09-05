@@ -158,8 +158,25 @@ const Reports = () => {
           </Button>
         </div>
 
+        {/* Total Nominal Highlight */}
+        <Card className="border bg-amber-300" data-testid="total-nominal-card">
+          <CardContent className="pt-6 pb-6">
+            <div className="flex items-center gap-5">
+              <div className="p-4 bg-black rounded-2xl">
+                <DollarSign className="w-9 h-9 text-amber-300" />
+              </div>
+              <div>
+                <p className="text-sm font-bold uppercase tracking-wider">Total Nominal Voucher Terpakai</p>
+                <p className="text-4xl sm:text-5xl font-extrabold leading-tight" data-testid="total-nominal-value">
+                  {formatCurrency(stats?.total_nominal_redeemed || 0)}
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Summary Stats */}
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-4 sm:grid-cols-3">
           <Card className="border">
             <CardContent className="pt-6">
               <div className="flex items-center gap-4">
@@ -195,21 +212,6 @@ const Reports = () => {
                 <div>
                   <p className="text-2xl font-bold">{stats?.redeemed || 0}</p>
                   <p className="text-sm text-muted-foreground">Telah Digunakan</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          <Card className="border">
-            <CardContent className="pt-6">
-              <div className="flex items-center gap-4">
-                <div className="p-3 bg-amber-100 rounded-lg">
-                  <DollarSign className="w-6 h-6 text-amber-600" />
-                </div>
-                <div>
-                  <p className="text-2xl font-bold">
-                    {formatCurrency(stats?.total_nominal_redeemed || 0)}
-                  </p>
-                  <p className="text-sm text-muted-foreground">Total Nominal</p>
                 </div>
               </div>
             </CardContent>

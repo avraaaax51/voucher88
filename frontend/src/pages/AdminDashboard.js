@@ -218,7 +218,7 @@ const AdminDashboard = () => {
                       <div>
                         <p className="font-medium text-sm">{redemption.voucher_code}</p>
                         <p className="text-xs text-muted-foreground">
-                          oleh {redemption.redeemed_by_name}
+                          di-scan oleh {redemption.redeemed_by_name}
                         </p>
                       </div>
                     </div>
