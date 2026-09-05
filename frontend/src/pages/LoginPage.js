@@ -4,11 +4,10 @@ import { useAuth } from "../context/AuthContext";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "../components/ui/input-otp";
 import { toast } from "sonner";
-import { User, KeyRound, Loader2, Store } from "lucide-react";
+import { User, KeyRound, Loader2, Ticket } from "lucide-react";
 
 const LoginPage = () => {
   const navigate = useNavigate();
@@ -59,166 +58,158 @@ const LoginPage = () => {
   };
 
   return (
-    <div className="min-h-screen flex">
-      {/* Left side - Image */}
+    <div className="min-h-screen flex items-center justify-center bg-amber-50 p-4" data-testid="login-page">
+      {/* Comic style pattern background */}
       <div 
-        className="hidden lg:flex lg:w-1/2 bg-cover bg-center relative"
+        className="absolute inset-0 opacity-[0.03]"
         style={{
-          backgroundImage: `url('https://images.unsplash.com/photo-1572231086568-6984943e6629?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2NzR8MHwxfHNlYXJjaHwzfHxtb2Rlcm4lMjBjb2ZmZWUlMjBzaG9wJTIwaW50ZXJpb3J8ZW58MHx8fHwxNzg4NTg3NTg5fDA&ixlib=rb-4.1.0&q=85')`
+          backgroundImage: `radial-gradient(circle, #000 1px, transparent 1px)`,
+          backgroundSize: '20px 20px'
         }}
-      >
-        <div className="absolute inset-0 bg-black/40" />
-        <div className="relative z-10 flex flex-col justify-end p-12 text-white">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-12 h-12 bg-white/20 backdrop-blur-sm rounded-lg flex items-center justify-center">
-              <Store className="w-6 h-6" />
-            </div>
-            <h1 className="text-3xl font-extrabold tracking-tight">VoucherKu</h1>
+      />
+      
+      <div className="relative w-full max-w-md">
+        {/* Logo section - Comic style */}
+        <div className="text-center mb-8">
+          <div className="inline-flex items-center justify-center w-20 h-20 bg-yellow-400 border-4 border-black rounded-2xl shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] mb-4 transform -rotate-3 hover:rotate-0 transition-transform">
+            <Ticket className="w-10 h-10 text-black" />
           </div>
-          <p className="text-lg text-white/80 max-w-md">
-            Sistem voucher promo modern untuk toko Anda. Kelola, cetak, dan verifikasi voucher dengan mudah.
-          </p>
+          <h1 className="text-4xl font-black text-black tracking-tight" style={{ fontFamily: 'system-ui, -apple-system, sans-serif' }}>
+            VoucherKu
+          </h1>
+          <p className="text-gray-600 mt-1 font-medium">Sistem Voucher Toko</p>
         </div>
-      </div>
 
-      {/* Right side - Login form */}
-      <div className="flex-1 flex items-center justify-center p-6 bg-background">
-        <div className="w-full max-w-md">
-          {/* Mobile logo */}
-          <div className="lg:hidden flex items-center justify-center gap-3 mb-8">
-            <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center">
-              <Store className="w-5 h-5 text-primary-foreground" />
-            </div>
-            <h1 className="text-2xl font-extrabold tracking-tight">VoucherKu</h1>
-          </div>
+        {/* Login Card - Comic style */}
+        <div className="bg-white border-4 border-black rounded-3xl shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] overflow-hidden">
+          {/* Header accent */}
+          <div className="h-3 bg-yellow-400 border-b-4 border-black" />
+          
+          <div className="p-6 pt-5">
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+              <TabsList className="grid w-full grid-cols-2 mb-6 bg-gray-100 p-1 rounded-xl border-2 border-black">
+                <TabsTrigger 
+                  value="admin" 
+                  className="rounded-lg font-bold data-[state=active]:bg-yellow-400 data-[state=active]:text-black data-[state=active]:border-2 data-[state=active]:border-black data-[state=active]:shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] transition-all"
+                  data-testid="tab-admin"
+                >
+                  <User className="w-4 h-4 mr-2" />
+                  Admin
+                </TabsTrigger>
+                <TabsTrigger 
+                  value="kasir"
+                  className="rounded-lg font-bold data-[state=active]:bg-emerald-400 data-[state=active]:text-black data-[state=active]:border-2 data-[state=active]:border-black data-[state=active]:shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] transition-all"
+                  data-testid="tab-kasir"
+                >
+                  <KeyRound className="w-4 h-4 mr-2" />
+                  Kasir
+                </TabsTrigger>
+              </TabsList>
 
-          <Card className="border shadow-sm">
-            <CardHeader className="space-y-1 pb-4">
-              <CardTitle className="text-2xl font-bold">Masuk</CardTitle>
-              <CardDescription>
-                Pilih metode login sesuai peran Anda
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-                <TabsList className="grid w-full grid-cols-2 mb-6">
-                  <TabsTrigger 
-                    value="admin" 
-                    className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
-                    data-testid="tab-admin"
-                  >
-                    <User className="w-4 h-4 mr-2" />
-                    Admin
-                  </TabsTrigger>
-                  <TabsTrigger 
-                    value="kasir"
-                    className="data-[state=active]:bg-emerald-600 data-[state=active]:text-white"
-                    data-testid="tab-kasir"
-                  >
-                    <KeyRound className="w-4 h-4 mr-2" />
-                    Kasir (PIN)
-                  </TabsTrigger>
-                </TabsList>
-
-                <TabsContent value="admin">
-                  <form onSubmit={handleEmailLogin} className="space-y-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="email">Email</Label>
-                      <Input
-                        id="email"
-                        type="email"
-                        placeholder="admin@toko.com"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        data-testid="input-email"
-                        className="h-12"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="password">Password</Label>
-                      <Input
-                        id="password"
-                        type="password"
-                        placeholder="••••••••"
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        data-testid="input-password"
-                        className="h-12"
-                      />
-                    </div>
-                    <Button
-                      type="submit"
-                      className="w-full h-12 text-base font-semibold"
-                      disabled={loading}
-                      data-testid="btn-login"
-                    >
-                      {loading ? (
-                        <>
-                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                          Memproses...
-                        </>
-                      ) : (
-                        "Masuk sebagai Admin"
-                      )}
-                    </Button>
-                  </form>
-                </TabsContent>
-
-                <TabsContent value="kasir">
-                  <div className="space-y-6">
-                    <div className="text-center">
-                      <p className="text-sm text-muted-foreground mb-4">
-                        Masukkan PIN 4 digit Anda
-                      </p>
-                      <div className="flex justify-center">
-                        <InputOTP
-                          maxLength={4}
-                          value={pin}
-                          onChange={(value) => {
-                            setPin(value);
-                            if (value.length === 4) {
-                              // Auto submit when 4 digits entered
-                              setTimeout(() => {
-                                document.getElementById("btn-pin-login")?.click();
-                              }, 100);
-                            }
-                          }}
-                          data-testid="input-pin"
-                        >
-                          <InputOTPGroup>
-                            <InputOTPSlot index={0} className="w-14 h-14 text-2xl" />
-                            <InputOTPSlot index={1} className="w-14 h-14 text-2xl" />
-                            <InputOTPSlot index={2} className="w-14 h-14 text-2xl" />
-                            <InputOTPSlot index={3} className="w-14 h-14 text-2xl" />
-                          </InputOTPGroup>
-                        </InputOTP>
-                      </div>
-                    </div>
-                    <Button
-                      id="btn-pin-login"
-                      onClick={handlePinLogin}
-                      className="w-full h-14 text-base font-semibold bg-emerald-600 hover:bg-emerald-700"
-                      disabled={loading || pin.length !== 4}
-                      data-testid="btn-pin-login"
-                    >
-                      {loading ? (
-                        <>
-                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                          Memproses...
-                        </>
-                      ) : (
-                        "Masuk sebagai Kasir"
-                      )}
-                    </Button>
-                    <p className="text-xs text-center text-muted-foreground">
-                      Hubungi admin jika belum punya PIN
-                    </p>
+              <TabsContent value="admin">
+                <form onSubmit={handleEmailLogin} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="email" className="font-bold text-black">Email</Label>
+                    <Input
+                      id="email"
+                      type="email"
+                      placeholder="admin@toko.com"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      data-testid="input-email"
+                      className="h-12 border-2 border-black rounded-xl font-medium focus:ring-2 focus:ring-yellow-400 focus:border-black"
+                    />
                   </div>
-                </TabsContent>
-              </Tabs>
-            </CardContent>
-          </Card>
+                  <div className="space-y-2">
+                    <Label htmlFor="password" className="font-bold text-black">Password</Label>
+                    <Input
+                      id="password"
+                      type="password"
+                      placeholder="••••••••"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      data-testid="input-password"
+                      className="h-12 border-2 border-black rounded-xl font-medium focus:ring-2 focus:ring-yellow-400 focus:border-black"
+                    />
+                  </div>
+                  <Button
+                    type="submit"
+                    className="w-full h-12 text-base font-bold bg-yellow-400 text-black border-2 border-black rounded-xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[2px] hover:translate-y-[2px] transition-all active:shadow-none active:translate-x-[4px] active:translate-y-[4px]"
+                    disabled={loading}
+                    data-testid="btn-login"
+                  >
+                    {loading ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Memproses...
+                      </>
+                    ) : (
+                      "Masuk"
+                    )}
+                  </Button>
+                </form>
+              </TabsContent>
+
+              <TabsContent value="kasir">
+                <div className="space-y-6">
+                  <div className="text-center">
+                    <div className="inline-block bg-emerald-100 border-2 border-black rounded-xl px-4 py-2 mb-4">
+                      <p className="text-sm font-bold text-black">
+                        Masukkan PIN 4 digit
+                      </p>
+                    </div>
+                    <div className="flex justify-center">
+                      <InputOTP
+                        maxLength={4}
+                        value={pin}
+                        onChange={(value) => {
+                          setPin(value);
+                          if (value.length === 4) {
+                            setTimeout(() => {
+                              document.getElementById("btn-pin-login")?.click();
+                            }, 100);
+                          }
+                        }}
+                        data-testid="input-pin"
+                      >
+                        <InputOTPGroup className="gap-2">
+                          <InputOTPSlot index={0} className="w-14 h-14 text-2xl font-bold border-2 border-black rounded-xl" />
+                          <InputOTPSlot index={1} className="w-14 h-14 text-2xl font-bold border-2 border-black rounded-xl" />
+                          <InputOTPSlot index={2} className="w-14 h-14 text-2xl font-bold border-2 border-black rounded-xl" />
+                          <InputOTPSlot index={3} className="w-14 h-14 text-2xl font-bold border-2 border-black rounded-xl" />
+                        </InputOTPGroup>
+                      </InputOTP>
+                    </div>
+                  </div>
+                  <Button
+                    id="btn-pin-login"
+                    onClick={handlePinLogin}
+                    className="w-full h-14 text-base font-bold bg-emerald-400 text-black border-2 border-black rounded-xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[2px] hover:translate-y-[2px] transition-all active:shadow-none active:translate-x-[4px] active:translate-y-[4px]"
+                    disabled={loading || pin.length !== 4}
+                    data-testid="btn-pin-login"
+                  >
+                    {loading ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Memproses...
+                      </>
+                    ) : (
+                      "Masuk"
+                    )}
+                  </Button>
+                  <p className="text-xs text-center font-medium text-gray-500">
+                    Hubungi admin jika belum punya PIN
+                  </p>
+                </div>
+              </TabsContent>
+            </Tabs>
+          </div>
         </div>
+
+        {/* Footer text */}
+        <p className="text-center text-xs text-gray-500 mt-6 font-medium">
+          VoucherKu v1.0
+        </p>
       </div>
     </div>
   );
