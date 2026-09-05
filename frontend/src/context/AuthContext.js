@@ -41,26 +41,11 @@ export const AuthProvider = ({ children }) => {
     checkAuth();
   }, [checkAuth]);
 
-  const login = async (email, password) => {
+  const login = async (name, password) => {
     try {
       const { data } = await axios.post(
         `${API_URL}/api/auth/login`,
-        { email, password },
-        { withCredentials: true }
-      );
-      setUser(data);
-      return { success: true, user: data };
-    } catch (error) {
-      const message = formatApiError(error.response?.data?.detail);
-      return { success: false, error: message };
-    }
-  };
-
-  const pinLogin = async (pin) => {
-    try {
-      const { data } = await axios.post(
-        `${API_URL}/api/auth/pin-login`,
-        { pin },
+        { name, password },
         { withCredentials: true }
       );
       setUser(data);
@@ -82,7 +67,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   const value = useMemo(
-    () => ({ user, loading, login, pinLogin, logout, checkAuth }),
+    () => ({ user, loading, login, logout, checkAuth }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [user, loading, checkAuth]
   );

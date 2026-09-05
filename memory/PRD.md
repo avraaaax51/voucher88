@@ -138,3 +138,9 @@ Semua fitur inti sudah diimplementasi dan diuji.
 - Kartu voucher: slot status (150px) & slot cetak tetap, badge "Belum Aktif" dihapus (draft hanya tampil "Belum dicetak"), teks Exp disembunyikan dari list, tombol hapus (DELETE /api/vouchers/{id}, admin, confirm).
 - Laporan: kartu Total Nominal dipindah ke atas, besar & kuning menonjol.
 - Voucher baru status draft → aktif setelah dicetak (mark-printed). Header sort kolom di Kelola Voucher (desktop).
+
+## Update 2026-09-05 — Auth nama+sandi 6 angka, hapus semua data, fix QR scan (iteration_7 PASS 16/16 + UI)
+- Login: nama (case-insensitive) + sandi 6 angka untuk admin & kasir; pin-login dihapus; register/reset wajib 6 digit; index unik users.name_lower; email opsional. Admin: nama "Admin", sandi 123456 (ADMIN_PASSWORD di backend/.env).
+- POST /api/admin/reset-data {confirm:"HAPUS SEMUA"} → hapus voucher, riwayat, counter (user & pengaturan tetap). UI Zona Bahaya di Pengaturan.
+- Kasir QR: scanner tetap ter-mount (hidden) saat hasil tampil, debounce scan ganda (busyRef + 4s), decode trim/uppercase, pause/resume aman.
+- Visual: avatar sidebar → ikon monitor gaya komik; kartu Total Nominal warna amber-100 lebih lembut.

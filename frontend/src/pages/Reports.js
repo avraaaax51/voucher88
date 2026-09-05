@@ -159,11 +159,11 @@ const Reports = () => {
         </div>
 
         {/* Total Nominal Highlight */}
-        <Card className="border bg-amber-300" data-testid="total-nominal-card">
+        <Card className="border bg-amber-100" data-testid="total-nominal-card">
           <CardContent className="pt-6 pb-6">
             <div className="flex items-center gap-5">
-              <div className="p-4 bg-black rounded-2xl">
-                <DollarSign className="w-9 h-9 text-amber-300" />
+              <div className="p-4 bg-amber-300 border-2 border-black rounded-2xl">
+                <DollarSign className="w-9 h-9 text-black" />
               </div>
               <div>
                 <p className="text-sm font-bold uppercase tracking-wider">Total Nominal Voucher Terpakai</p>

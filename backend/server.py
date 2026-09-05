@@ -93,18 +93,21 @@ def require_role(allowed_roles: list):
 
 # Pydantic Models
 class UserCreate(BaseModel):
-    email: EmailStr
-    password: str
     name: str
+    password: str
     role: str = "kasir"
-    pin: Optional[str] = None
+    email: Optional[str] = None
 
 class UserLogin(BaseModel):
-    email: EmailStr
+    name: str
     password: str
 
-class PinLogin(BaseModel):
-    pin: str
+class ResetData(BaseModel):
+    confirm: str
+
+def validate_numeric_password(pw: str):
+    if not (pw.isdigit() and len(pw) == 6):
+        raise HTTPException(status_code=400, detail="Sandi harus 6 angka")
 
 class VoucherCreate(BaseModel):
     title: str
@@ -129,8 +132,7 @@ async def get_settings_doc() -> dict:
     return {**DEFAULT_SETTINGS, **(doc or {})}
 
 class UserReset(BaseModel):
-    password: Optional[str] = None
-    pin: Optional[str] = None
+    password: str
 
 class VoucherRedeem(BaseModel):
     code: str
@@ -177,6 +179,7 @@ async def seed_admin():
             "email": admin_email,
             "password_hash": hashed,
             "name": "Admin",
+            "name_lower": "admin",
             "role": "admin",
             "created_at": datetime.now(timezone.utc)
         })
@@ -187,10 +190,16 @@ async def seed_admin():
             {"$set": {"password_hash": hash_password(admin_password)}}
         )
         logging.info("Admin password updated")
+    async for u in db.users.find({"name_lower": {"$exists": False}}):
+        await db.users.update_one({"_id": u["_id"]}, {"$set": {"name_lower": u["name"].strip().lower()}})
 
 async def create_indexes():
-    await db.users.create_index("email", unique=True)
-    await db.users.create_index("pin", sparse=True)
+    try:
+        await db.users.drop_index("email_1")
+    except Exception:
+        pass
+    await db.users.create_index("email", unique=True, sparse=True)
+    await db.users.create_index("name_lower", unique=True)
     await db.vouchers.create_index("code", unique=True)
     await db.vouchers.create_index("expires_at")
     await db.login_attempts.create_index("identifier")
@@ -200,13 +209,17 @@ async def write_test_credentials():
     credentials_content = f"""# VoucherKu Test Credentials
 
 ## Admin Account
-- Email: {os.environ.get("ADMIN_EMAIL", "admin@example.com")}
-- Password: {os.environ.get("ADMIN_PASSWORD", "admin123")}
+- Nama (username): Admin
+- Sandi (6 angka): {os.environ.get("ADMIN_PASSWORD", "admin123")}
+- Email (info only, not used for login): {os.environ.get("ADMIN_EMAIL", "admin@example.com")}
 - Role: admin
 
+## Auth Notes
+- Login uses name + 6-digit numeric password (case-insensitive name). Cookie-only (httpOnly), no Bearer.
+- Kasir accounts: create via Kelola User (name + 6-digit sandi).
+
 ## Auth Endpoints
-- POST /api/auth/login - Login with email/password
-- POST /api/auth/pin-login - Login with PIN (kasir only)
+- POST /api/auth/login - {{"name","password"}}
 - GET /api/auth/me - Get current user
 - POST /api/auth/logout - Logout
 
@@ -256,10 +269,10 @@ logger = logging.getLogger(__name__)
 
 @api_router.post("/auth/login")
 async def login(data: UserLogin, response: Response):
-    email = data.email.lower()
+    name_lower = data.name.strip().lower()
     
     # Check brute force
-    identifier = email
+    identifier = name_lower
     attempts = await db.login_attempts.find_one({"identifier": identifier})
     if attempts and attempts.get("count", 0) >= 5:
         lockout_until = attempts.get("lockout_until")
@@ -268,7 +281,7 @@ async def login(data: UserLogin, response: Response):
         else:
             await db.login_attempts.delete_one({"identifier": identifier})
     
-    user = await db.users.find_one({"email": email})
+    user = await db.users.find_one({"name_lower": name_lower})
     if not user or not verify_password(data.password, user["password_hash"]):
         # Record failed attempt
         await db.login_attempts.update_one(
@@ -279,12 +292,12 @@ async def login(data: UserLogin, response: Response):
             },
             upsert=True
         )
-        raise HTTPException(status_code=401, detail="Email atau password salah")
+        raise HTTPException(status_code=401, detail="Nama atau sandi salah")
     
     # Clear failed attempts
     await db.login_attempts.delete_one({"identifier": identifier})
     
-    access_token = create_access_token(str(user["_id"]), user["email"], user["role"])
+    access_token = create_access_token(str(user["_id"]), user.get("email") or "", user["role"])
     refresh_token = create_refresh_token(str(user["_id"]))
     
     response.set_cookie(key="access_token", value=access_token, httponly=True, secure=True, samesite="none", max_age=28800, path="/")
@@ -292,38 +305,9 @@ async def login(data: UserLogin, response: Response):
     
     return {
         "_id": str(user["_id"]),
-        "email": user["email"],
+        "email": user.get("email"),
         "name": user["name"],
         "role": user["role"]
-    }
-
-@api_router.post("/auth/pin-login")
-async def pin_login(data: PinLogin, response: Response):
-    """Quick PIN login for cashiers"""
-    user = await db.users.find_one({"pin_hash": {"$exists": True}})
-    
-    # Find user with matching PIN
-    users_with_pin = await db.users.find({"pin_hash": {"$exists": True}}).to_list(100)
-    matched_user = None
-    for u in users_with_pin:
-        if verify_password(data.pin, u["pin_hash"]):
-            matched_user = u
-            break
-    
-    if not matched_user:
-        raise HTTPException(status_code=401, detail="PIN tidak valid")
-    
-    access_token = create_access_token(str(matched_user["_id"]), matched_user["email"], matched_user["role"])
-    refresh_token = create_refresh_token(str(matched_user["_id"]))
-    
-    response.set_cookie(key="access_token", value=access_token, httponly=True, secure=True, samesite="none", max_age=28800, path="/")
-    response.set_cookie(key="refresh_token", value=refresh_token, httponly=True, secure=True, samesite="none", max_age=604800, path="/")
-    
-    return {
-        "_id": str(matched_user["_id"]),
-        "email": matched_user["email"],
-        "name": matched_user["name"],
-        "role": matched_user["role"]
     }
 
 @api_router.get("/auth/me")
@@ -339,22 +323,26 @@ async def logout(response: Response):
 @api_router.post("/auth/register")
 async def register(data: UserCreate, response: Response, admin: dict = Depends(require_role(["admin"]))):
     """Only admin can create new users"""
-    email = data.email.lower()
+    name = data.name.strip()
+    if len(name) < 2:
+        raise HTTPException(status_code=400, detail="Nama minimal 2 karakter")
+    validate_numeric_password(data.password)
+    if data.role not in ("admin", "kasir"):
+        raise HTTPException(status_code=400, detail="Role tidak valid")
     
-    existing = await db.users.find_one({"email": email})
-    if existing:
-        raise HTTPException(status_code=400, detail="Email sudah terdaftar")
+    if await db.users.find_one({"name_lower": name.lower()}):
+        raise HTTPException(status_code=400, detail="Nama sudah digunakan")
     
     user_doc = {
-        "email": email,
         "password_hash": hash_password(data.password),
-        "name": data.name,
+        "name": name,
+        "name_lower": name.lower(),
         "role": data.role,
         "created_at": datetime.now(timezone.utc)
     }
-    
-    if data.pin:
-        user_doc["pin_hash"] = hash_password(data.pin)
+    email = data.email.strip().lower() if data.email else None
+    if email:
+        user_doc["email"] = email
     
     result = await db.users.insert_one(user_doc)
     
@@ -387,21 +375,23 @@ async def delete_user(user_id: str, admin: dict = Depends(require_role(["admin"]
 
 @api_router.put("/users/{user_id}/reset")
 async def reset_user_credentials(user_id: str, data: UserReset, admin: dict = Depends(require_role(["admin"]))):
-    if not data.password and not data.pin:
-        raise HTTPException(status_code=400, detail="Isi password baru atau PIN baru")
-    if data.password and len(data.password) < 6:
-        raise HTTPException(status_code=400, detail="Password minimal 6 karakter")
-    if data.pin and (not data.pin.isdigit() or not 4 <= len(data.pin) <= 6):
-        raise HTTPException(status_code=400, detail="PIN harus 4-6 digit angka")
-    update = {}
-    if data.password:
-        update["password_hash"] = hash_password(data.password)
-    if data.pin:
-        update["pin_hash"] = hash_password(data.pin)
+    validate_numeric_password(data.password)
+    update = {"password_hash": hash_password(data.password)}
     result = await db.users.update_one({"_id": ObjectId(user_id)}, {"$set": update})
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail="User tidak ditemukan")
-    return {"message": "Kredensial berhasil direset"}
+    return {"message": "Sandi berhasil direset"}
+
+@api_router.post("/admin/reset-data")
+async def reset_all_data(data: ResetData, admin: dict = Depends(require_role(["admin"]))):
+    """Delete all vouchers, redemption logs and counters (users & settings kept)"""
+    if data.confirm != "HAPUS SEMUA":
+        raise HTTPException(status_code=400, detail='Ketik "HAPUS SEMUA" untuk konfirmasi')
+    v = await db.vouchers.delete_many({})
+    r = await db.redemption_logs.delete_many({})
+    await db.counters.delete_many({})
+    await db.login_attempts.delete_many({})
+    return {"message": "Semua data voucher berhasil dihapus", "vouchers_deleted": v.deleted_count, "redemptions_deleted": r.deleted_count}
 
 # ==================== VOUCHER ROUTES ====================
 

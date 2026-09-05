@@ -1,0 +1,30 @@
+{
+  "summary": "Iteration 7 validated: (a) name-based auth (case-insensitive login), pin-login removed, register/reset with 6-digit numeric validation & duplicate-name check, (b) admin/reset-data endpoint with RBAC and confirm-string check, actual voucher wipe with counter reset (next voucher gets ...001), (c) QR-scan pipeline in Kasir mode via html5-qrcode 'Scan an Image File' upload of an active voucher's QR PNG -> result-stamp shows BERHASIL! + 'Voucher berhasil digunakan!' + voucher code (QR5MQ4O002) rendered, dashboard reflects Digunakan Hari Ini=1, zero scanner-related console errors. Backend: 16/16 pytest cases green. Frontend: login page has no tabs/OTP, sandi strips non-digits (abc123->123), btn-login disabled until name + 6 digits, admin login -> /admin, refresh preserves session, kasir 'Kasir Uji' login -> /kasir with 'Selamat datang' toast, Zona Bahaya card in /admin/settings: btn-reset-data initially disabled, input auto-uppercases 'hapus semua' -> 'HAPUS SEMUA', button enables. Reset dialog only asks 6-digit sandi. Logout returns to /login. Regression: voucher create/mark-printed/list/stats still functional post-wipe.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration7.py",
+    "/app/test_reports/pytest/iteration7.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "UserManagement.js still carries legacy state fields email/pin in useState formData and resetForm.pin; they are unused in submission but bloat the component and can confuse future edits — recommend removing.",
+    "CashierMode.initScanner: on 'Scan Voucher Lain' resetScanner only calls scanner.resume() without switching back to the last-active input source; if the user previously used 'Scan an Image File', html5-qrcode may reset to camera view, causing UX inconsistency (minor; not a defect in scan pipeline itself).",
+    "server.py reset_all_data also deletes login_attempts which is not documented in the endpoint description; acceptable behavior but worth mentioning in API docs.",
+    "server.py login: on failed attempt sets a fresh lockout_until per attempt (not per 5th attempt), so partial failure attempts keep sliding the lockout window; consider setting lockout_until only when count reaches 5.",
+    "seed_admin: password diff check is a good idempotent update, but admin's name/name_lower is never re-synced if ADMIN name changes; not currently a concern since only email is env-configurable.",
+    "LoginPage/UserManagement duplicate the 'replace(/\\D/g,\"\").slice(0,6)' password sanitizer 3 times — extract into a small util."
+  ],
+  "updated_files": ["/app/backend/tests/test_iteration7.py"],
+  "success_rate": {"backend": "100% (16/16)", "frontend": "100% of targeted flows"},
+  "test_credentials": "admin: name=Admin, sandi=123456 (cookie auth)",
+  "seed_data_creation": "Created 2 QR vouchers (QR..002, QR..003) and 1 AR..001 during test; all wiped at end via /api/admin/reset-data. Test kasir TEST_KasirUji7 and Kasir Uji created and deleted.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "iteration7.py combines auth + reset-data + redeem regression. The reset-data test wipes vouchers at the end (intentionally, per request). If future iterations need pre-existing voucher data, run their fixtures BEFORE test_iteration7's TestVoucherAndReset::test_reset_data_ok_and_wipe or run iteration7 separately. QR file upload via html5-qrcode's 'Scan an Image File' link works reliably in headless — pattern reusable.",
+  "rca of the issue": "N/A - no bugs found; all three requested features verified end-to-end."
+}

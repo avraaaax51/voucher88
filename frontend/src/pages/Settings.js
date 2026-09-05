@@ -5,7 +5,7 @@ import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
 import { toast } from "sonner";
-import { Loader2, Save, Store, Bell } from "lucide-react";
+import { Loader2, Save, Store, Bell, Trash2, AlertTriangle } from "lucide-react";
 import { DEFAULT_SETTINGS } from "../hooks/useStoreSettings";
 import { PrintVoucher } from "../components/PrintVoucher";
 
@@ -24,6 +24,8 @@ const previewVoucher = { code: "PREVIEW001", nominal: 50000, terms: "", qr_code:
 const Settings = () => {
   const [form, setForm] = useState(DEFAULT_SETTINGS);
   const [saving, setSaving] = useState(false);
+  const [resetConfirm, setResetConfirm] = useState("");
+  const [resetting, setResetting] = useState(false);
 
   useEffect(() => {
     fetch(`${API_URL}/api/settings`, { credentials: "include" })
@@ -57,6 +59,27 @@ const Settings = () => {
       toast.error(err.message);
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleResetData = async () => {
+    if (!window.confirm("Semua voucher dan riwayat penggunaan akan dihapus permanen. Lanjutkan?")) return;
+    setResetting(true);
+    try {
+      const res = await fetch(`${API_URL}/api/admin/reset-data`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ confirm: resetConfirm }),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.detail || "Gagal menghapus data");
+      toast.success(`${body.message} (${body.vouchers_deleted} voucher, ${body.redemptions_deleted} riwayat)`);
+      setResetConfirm("");
+    } catch (err) {
+      toast.error(err.message);
+    } finally {
+      setResetting(false);
     }
   };
 
@@ -109,6 +132,23 @@ const Settings = () => {
             </div>
           </div>
         </form>
+
+        <Card className="border border-red-600" data-testid="danger-zone">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-lg text-red-700"><AlertTriangle className="w-5 h-5" /> Zona Bahaya</CardTitle>
+            <CardDescription>Hapus semua voucher, riwayat penggunaan, dan nomor urut sehingga data kembali seperti baru. Akun user dan pengaturan toko tetap disimpan.</CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col sm:flex-row gap-3 sm:items-end">
+            <div className="space-y-2 flex-1 max-w-sm">
+              <Label htmlFor="reset-confirm">Ketik <span className="font-mono font-bold">HAPUS SEMUA</span> untuk konfirmasi</Label>
+              <Input id="reset-confirm" value={resetConfirm} onChange={(e) => setResetConfirm(e.target.value.toUpperCase())} placeholder="HAPUS SEMUA" data-testid="input-reset-confirm" />
+            </div>
+            <Button type="button" variant="destructive" disabled={resetting || resetConfirm !== "HAPUS SEMUA"} onClick={handleResetData} className="h-10" data-testid="btn-reset-data">
+              {resetting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Trash2 className="w-4 h-4 mr-2" />}
+              Hapus Semua Data
+            </Button>
+          </CardContent>
+        </Card>
       </div>
     </AdminLayout>
   );

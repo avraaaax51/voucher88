@@ -76,7 +76,7 @@ const UserManagement = () => {
   }, [fetchUsers]);
 
   const handleDelete = async (u) => {
-    if (!window.confirm(`Hapus user ${u.name} (${u.email})?`)) return;
+    if (!window.confirm(`Hapus user ${u.name}?`)) return;
     try {
       const res = await fetch(`${API_URL}/api/users/${u._id}`, { method: "DELETE", credentials: "include" });
       const body = await res.json();
@@ -92,9 +92,7 @@ const UserManagement = () => {
     e.preventDefault();
     setResetLoading(true);
     try {
-      const payload = {};
-      if (resetForm.password) payload.password = resetForm.password;
-      if (resetForm.pin) payload.pin = resetForm.pin;
+      const payload = { password: resetForm.password };
       const res = await fetch(`${API_URL}/api/users/${resetTarget._id}/reset`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -204,31 +202,22 @@ const UserManagement = () => {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="email">Email</Label>
-                  <Input
-                    id="email"
-                    name="email"
-                    type="email"
-                    placeholder="email@contoh.com"
-                    value={formData.email}
-                    onChange={handleChange}
-                    required
-                    data-testid="input-user-email"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="password">Password</Label>
+                  <Label htmlFor="password">Sandi (6 angka)</Label>
                   <Input
                     id="password"
                     name="password"
                     type="password"
-                    placeholder="Minimal 6 karakter"
+                    inputMode="numeric"
+                    pattern="[0-9]{6}"
+                    placeholder="6 angka"
                     value={formData.password}
-                    onChange={handleChange}
+                    onChange={(e) => setFormData((p) => ({ ...p, password: e.target.value.replace(/\D/g, "").slice(0, 6) }))}
                     required
                     minLength={6}
+                    maxLength={6}
                     data-testid="input-user-password"
                   />
+                  <p className="text-xs text-muted-foreground">Nama dipakai untuk login, sandi harus tepat 6 angka</p>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="role">Role</Label>
@@ -245,24 +234,6 @@ const UserManagement = () => {
                     </SelectContent>
                   </Select>
                 </div>
-                {formData.role === "kasir" && (
-                  <div className="space-y-2">
-                    <Label htmlFor="pin">PIN Cepat (Opsional)</Label>
-                    <Input
-                      id="pin"
-                      name="pin"
-                      type="password"
-                      placeholder="4-6 digit PIN untuk login cepat"
-                      value={formData.pin}
-                      onChange={handleChange}
-                      maxLength={6}
-                      data-testid="input-user-pin"
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      PIN untuk login cepat di mode kasir
-                    </p>
-                  </div>
-                )}
                 <DialogFooter className="pt-4">
                   <Button
                     type="button"
@@ -362,7 +333,6 @@ const UserManagement = () => {
                   <TableHeader>
                     <TableRow>
                       <TableHead>Nama</TableHead>
-                      <TableHead>Email</TableHead>
                       <TableHead>Role</TableHead>
                       <TableHead>Dibuat</TableHead>
                       <TableHead className="text-right">Aksi</TableHead>
@@ -373,9 +343,6 @@ const UserManagement = () => {
                       <TableRow key={user._id} data-testid={`user-row-${user._id}`}>
                         <TableCell className="font-medium">
                           {user.name}
-                        </TableCell>
-                        <TableCell className="text-muted-foreground">
-                          {user.email}
                         </TableCell>
                         <TableCell>
                           <Badge
@@ -419,22 +386,16 @@ const UserManagement = () => {
         <Dialog open={!!resetTarget} onOpenChange={(o) => !o && setResetTarget(null)}>
           <DialogContent data-testid="reset-user-dialog">
             <DialogHeader>
-              <DialogTitle>Reset Kredensial</DialogTitle>
-              <DialogDescription>{resetTarget?.name} · {resetTarget?.email}. Kosongkan kolom yang tidak ingin diubah.</DialogDescription>
+              <DialogTitle>Reset Sandi</DialogTitle>
+              <DialogDescription>Sandi baru untuk {resetTarget?.name} (6 angka).</DialogDescription>
             </DialogHeader>
             <form onSubmit={handleReset} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="reset-password">Password Baru</Label>
-                <Input id="reset-password" type="password" minLength={6} value={resetForm.password} onChange={(e) => setResetForm((p) => ({ ...p, password: e.target.value }))} placeholder="Minimal 6 karakter" data-testid="input-reset-password" />
+                <Label htmlFor="reset-password">Sandi Baru (6 angka)</Label>
+                <Input id="reset-password" type="password" inputMode="numeric" maxLength={6} value={resetForm.password} onChange={(e) => setResetForm((p) => ({ ...p, password: e.target.value.replace(/\D/g, "").slice(0, 6) }))} placeholder="6 angka" data-testid="input-reset-password" />
               </div>
-              {resetTarget?.role === "kasir" && (
-                <div className="space-y-2">
-                  <Label htmlFor="reset-pin">PIN Baru</Label>
-                  <Input id="reset-pin" inputMode="numeric" pattern="[0-9]{4,6}" maxLength={6} value={resetForm.pin} onChange={(e) => setResetForm((p) => ({ ...p, pin: e.target.value.replace(/\D/g, "") }))} placeholder="4-6 digit" data-testid="input-reset-pin" />
-                </div>
-              )}
               <DialogFooter>
-                <Button type="submit" disabled={resetLoading || (!resetForm.password && !resetForm.pin)} data-testid="btn-submit-reset">
+                <Button type="submit" disabled={resetLoading || resetForm.password.length !== 6} data-testid="btn-submit-reset">
                   {resetLoading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
                   Simpan
                 </Button>

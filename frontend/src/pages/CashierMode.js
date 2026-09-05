@@ -32,6 +32,8 @@ const CashierMode = () => {
   
   const scannerRef = useRef(null);
   const handleScanRef = useRef(null);
+  const busyRef = useRef(false);
+  const lastScanRef = useRef({ code: "", at: 0 });
 
   const initScanner = useCallback(() => {
     setScannerReady(false);
@@ -56,8 +58,13 @@ const CashierMode = () => {
 
     scanner.render(
       (decodedText) => {
-        handleScanRef.current?.(decodedText);
-        scanner.pause(true);
+        const code = String(decodedText || "").trim().split("/").pop().toUpperCase();
+        const now = Date.now();
+        if (busyRef.current) return;
+        if (lastScanRef.current.code === code && now - lastScanRef.current.at < 4000) return;
+        lastScanRef.current = { code, at: now };
+        try { scanner.pause(true); } catch {}
+        handleScanRef.current?.(code);
       },
       (error) => {
         // Error callback - ignore scan errors
@@ -80,7 +87,8 @@ const CashierMode = () => {
   }, [mode, initScanner]);
 
   const handleScan = async (code) => {
-    if (loading) return;
+    if (busyRef.current) return;
+    busyRef.current = true;
     
     setLoading(true);
     setResult(null);
@@ -110,6 +118,7 @@ const CashierMode = () => {
       toast.error(message);
     } finally {
       setLoading(false);
+      busyRef.current = false;
     }
   };
 
@@ -127,8 +136,9 @@ const CashierMode = () => {
   const resetScanner = () => {
     setResult(null);
     setManualCode("");
+    lastScanRef.current = { code: "", at: 0 };
     if (mode === "scan" && scannerRef.current) {
-      scannerRef.current.resume();
+      try { scannerRef.current.resume(); } catch {}
     }
   };
 
@@ -277,10 +287,8 @@ const CashierMode = () => {
         )}
 
         {/* Scanner / Manual Input */}
-        {!result && (
-          <>
-            {mode === "scan" ? (
-              <div className="space-y-4">
+        {mode === "scan" && (
+          <div className={`space-y-4 ${result ? "hidden" : ""}`}>
                 <Card className="overflow-hidden">
                   <CardContent className="p-0">
                     <div 
@@ -301,13 +309,14 @@ const CashierMode = () => {
                 <p className="text-center text-sm text-muted-foreground">
                   Arahkan kamera ke kode QR pada voucher
                 </p>
-              </div>
-            ) : (
+          </div>
+        )}
+        {mode === "manual" && !result && (
               <form onSubmit={handleManualSubmit} className="space-y-4">
                 <div>
                   <Input
                     type="text"
-                    placeholder="Contoh: ABC123-0001"
+                    placeholder="Contoh: H7M0YCY001"
                     value={manualCode}
                     onChange={(e) => setManualCode(e.target.value.toUpperCase())}
                     className="h-16 text-xl text-center font-mono tracking-wider"
@@ -339,8 +348,6 @@ const CashierMode = () => {
                   Masukkan kode voucher yang tercetak
                 </p>
               </form>
-            )}
-          </>
         )}
 
         {/* User Info */}

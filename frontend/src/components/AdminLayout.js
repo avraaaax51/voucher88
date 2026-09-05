@@ -2,7 +2,6 @@ import { useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { Button } from "./ui/button";
-import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -18,6 +17,7 @@ import {
   Ticket,
   Users,
   BarChart3,
+  Monitor,
   Settings as SettingsIcon,
   ScanLine,
   LogOut,
@@ -114,10 +114,12 @@ const AdminLayout = ({ children }) => {
                   className="flex items-center gap-3 w-full px-2 py-2 rounded-lg hover:bg-muted transition-colors"
                   data-testid="user-menu-trigger"
                 >
-                  <Avatar className="w-9 h-9">
-                    <AvatarImage src="https://images.pexels.com/photos/30426363/pexels-photo-30426363.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940" />
-                    <AvatarFallback>{user?.name?.charAt(0) || "A"}</AvatarFallback>
-                  </Avatar>
+                  <div
+                    className="w-9 h-9 flex items-center justify-center bg-yellow-300 border-2 border-black rounded-lg shadow-[2px_2px_0_0_#000] -rotate-3"
+                    data-testid="user-avatar-logo"
+                  >
+                    <Monitor className="w-5 h-5 text-black" strokeWidth={2.5} />
+                  </div>
                   <div className="flex-1 text-left">
                     <p className="text-sm font-medium truncate">{user?.name}</p>
                     <p className="text-xs text-muted-foreground capitalize">{user?.role}</p>
@@ -196,9 +198,9 @@ const AdminLayout = ({ children }) => {
               {/* User */}
               <div className="pt-4 mt-4 border-t">
                 <div className="flex items-center gap-3 px-2 mb-4">
-                  <Avatar className="w-9 h-9">
-                    <AvatarFallback>{user?.name?.charAt(0) || "A"}</AvatarFallback>
-                  </Avatar>
+                  <div className="w-9 h-9 flex items-center justify-center bg-yellow-300 border-2 border-black rounded-lg shadow-[2px_2px_0_0_#000] -rotate-3">
+                    <Monitor className="w-5 h-5 text-black" strokeWidth={2.5} />
+                  </div>
                   <div>
                     <p className="text-sm font-medium">{user?.name}</p>
                     <p className="text-xs text-muted-foreground capitalize">{user?.role}</p>
