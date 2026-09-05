@@ -1,0 +1,24 @@
+{
+  "summary": "Iteration 12 verified the new print_page_height_mm setting for Epson TM-T82III per-voucher auto-cut. Backend: 6/6 pytest passed (default 150, 30→400, 500→400, 0 ok, 160 persisted, restore 150). Frontend: Settings input shows 150, cut-line-preview positioned at ~566.9px (150mm) from paper-preview top, disappears when 0, moves to ~604.7px at 160mm, saves correctly. Create Voucher (4 vouchers, expires 2027-01-01T10:00): #print-root [data-testid=print-area] has data-page-size='80mm 150mm' and style contains '@page { size: 80mm 150mm'. Under print media page.pdf(prefer_css_page_size=True) produced exactly 4 pages each 80.09x149.94mm, and each .print-voucher-card computed height ≈566.9px (=150mm). Kelola Voucher bulk print (2 selected via checkbox-<code>) => 2 PDF pages 80.09x149.94mm. Single row print => 1 page 80.09x149.94mm. Fallback with print_page_height_mm=0: print-area data-page-size='80mm auto', PDF renders without crash and 2 cards rendered. Restored to 150. Zero console errors.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_iteration12.py",
+    "/app/test_reports/pytest/iter12.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Settings.js has a small race: initial fetch(setForm) can overwrite user edits made before the response arrives. Not user-facing (page load is fast) but worth guarding.",
+    "server.py update_settings validates print_offset_mm/print_scale/print_feed_mm ranges but not print_paper_mm min inconsistency with default (60 vs 50). Not a bug for this iteration."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration12.py"
+  ],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "Admin / 123456 (cookie-only)",
+  "seed_data_creation": "Created 4 vouchers (Cut Test) + 2 vouchers (FallbackZero) via UI; not cleaned up. Restored settings to print_page_height_mm=150.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "print_page_height_mm feature is fully working end-to-end. When testing settings save via UI, wait for initial fetch to populate the form (poll input_value until expected) before editing to avoid a fetch-vs-fill race. In headless Chromium, use await page.emulate_media(media='screen') after page.pdf to reset print media, or clicking the app's window.print() can leave the page rendering in print mode.",
+  "rca of the issue": "Original bug (single auto-cut for multi-voucher jobs) was rooted in @page size using 'auto' height, so the roll-paper driver treated the whole HTML job as one continuous page. Fix injects @page { size: <paper>mm <height>mm; margin:0 } into PrintPortal and forces each .print-voucher-card to fixed height with overflow:hidden so every voucher paginates as its own page (verified: 4 vouchers → 4 PDF pages of 80x150mm, cards ≈567px)."
+}

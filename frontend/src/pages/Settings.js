@@ -56,6 +56,7 @@ const Settings = () => {
     print_offset_mm: parseFloat(f.print_offset_mm) || 0,
     print_scale: parseInt(f.print_scale, 10),
     print_feed_mm: parseInt(f.print_feed_mm, 10),
+    print_page_height_mm: parseInt(f.print_page_height_mm, 10) || 0,
   });
   const handleTestPrint = () => {
     setTimeout(() => window.print(), 200);
@@ -171,6 +172,11 @@ const Settings = () => {
                   {num("print_feed_mm", { min: 0, max: 40 })}
                   <p className="text-xs text-muted-foreground">Agar garis bawah tidak ikut terpotong</p>
                 </div>
+                <div className="space-y-2">
+                  <Label>Tinggi halaman per voucher (mm)</Label>
+                  {num("print_page_height_mm", { min: 0, max: 400 })}
+                  <p className="text-xs text-muted-foreground">Wajib diisi agar auto cut per voucher (mis. 150). 0 = panjang otomatis (sering tidak memotong)</p>
+                </div>
                 <div className="space-y-2 flex flex-col justify-end">
                   <Button type="button" variant="outline" onClick={handleTestPrint} data-testid="btn-test-print">
                     <Printer className="w-4 h-4 mr-2" /> Cetak Tes
@@ -198,6 +204,15 @@ const Settings = () => {
               >
                 <div className="absolute left-1/2 top-0 bottom-0 border-l border-dashed border-red-300 pointer-events-none" />
                 <PrintVoucher voucher={previewVoucher} settings={form} />
+                {Number(form.print_page_height_mm) > 0 && (
+                  <div
+                    className="absolute left-0 right-0 border-t-2 border-dashed border-red-500 text-[10px] text-red-600 text-right pr-1 pointer-events-none"
+                    style={{ top: `${Number(form.print_page_height_mm)}mm` }}
+                    data-testid="cut-line-preview"
+                  >
+                    ✂ potong ({form.print_page_height_mm} mm)
+                  </div>
+                )}
               </div>
             </div>
             <PrintPortal testId="settings-test-print" settings={form}>

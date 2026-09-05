@@ -129,6 +129,7 @@ class StoreSettings(BaseModel):
     print_offset_mm: float = 0
     print_scale: int = 100
     print_feed_mm: int = 6
+    print_page_height_mm: int = 150
 
 DEFAULT_SETTINGS = StoreSettings().model_dump()
 
@@ -725,6 +726,8 @@ async def update_settings(data: StoreSettings, admin: dict = Depends(require_rol
         raise HTTPException(status_code=400, detail="Ambang peringatan harus 1-365 hari")
     if not 50 <= data.print_paper_mm <= 120 or not 40 <= data.print_width_mm <= data.print_paper_mm:
         raise HTTPException(status_code=400, detail="Lebar cetak harus 40mm s/d lebar kertas (50-120mm)")
+    if data.print_page_height_mm != 0 and not 60 <= data.print_page_height_mm <= 400:
+        raise HTTPException(status_code=400, detail="Tinggi halaman harus 0 (otomatis) atau 60-400mm")
     if not -20 <= data.print_offset_mm <= 20 or not 50 <= data.print_scale <= 150 or not 0 <= data.print_feed_mm <= 40:
         raise HTTPException(status_code=400, detail="Nilai geser (-20..20mm), skala (50-150%) atau feed (0-40mm) tidak valid")
     payload = data.model_dump()

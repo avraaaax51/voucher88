@@ -14,6 +14,7 @@ export const DEFAULT_SETTINGS = {
   print_offset_mm: 0,
   print_scale: 100,
   print_feed_mm: 6,
+  print_page_height_mm: 150,
 };
 
 export const useStoreSettings = () => {

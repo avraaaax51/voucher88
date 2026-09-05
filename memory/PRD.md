@@ -164,3 +164,6 @@ Semua fitur inti sudah diimplementasi dan diuji.
 
 ## Update 2026-09-05 — Pengaturan Cetak (iteration_11)
 - Settings print_paper_mm/print_width_mm/print_offset_mm/print_scale/print_feed_mm (validasi backend). PrintPortal inject @page size dinamis; PrintVoucher marginLeft=(paper-width)/2+offset, zoom=scale, padding bawah=feed. Pratinjau kertas + garis tengah + tombol Cetak Tes di Pengaturan.
+
+## Update 2026-09-05 — Auto cut fix (iteration_12)
+- Setting print_page_height_mm (default 150, 0=auto). @page size tetap WxH → tiap voucher 1 halaman berukuran pasti → driver cut per halaman. PDF 4 voucher = 4 halaman 80x150mm terverifikasi. Preview garis potong di Pengaturan.

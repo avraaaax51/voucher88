@@ -6,9 +6,12 @@ export const PrintPortal = ({ children, testId, settings = {} }) => {
   const target = document.getElementById("print-root");
   if (!target) return null;
   const paper = Number(settings.print_paper_mm ?? DEFAULT_SETTINGS.print_paper_mm);
+  const h = Number(settings.print_page_height_mm ?? DEFAULT_SETTINGS.print_page_height_mm) || 0;
+  const size = h > 0 ? `${paper}mm ${h}mm` : `${paper}mm auto`;
+  const cardRule = h > 0 ? `.print-voucher-card { height: ${h}mm !important; max-height: ${h}mm !important; overflow: hidden !important; box-sizing: border-box !important; }` : "";
   return createPortal(
-    <div className="print-sheet" data-testid={testId} style={{ width: `${paper}mm` }}>
-      <style>{`@media print { @page { size: ${paper}mm auto; margin: 0; } html, body, #print-root { width: ${paper}mm !important; } }`}</style>
+    <div className="print-sheet" data-testid={testId} style={{ width: `${paper}mm` }} data-page-size={size}>
+      <style>{`@media print { @page { size: ${size}; margin: 0; } html, body, #print-root { width: ${paper}mm !important; } ${cardRule} }`}</style>
       {children}
     </div>,
     target
