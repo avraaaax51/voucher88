@@ -128,6 +128,10 @@ async def get_settings_doc() -> dict:
     doc = await db.settings.find_one({"_id": "store"}, {"_id": 0})
     return {**DEFAULT_SETTINGS, **(doc or {})}
 
+class UserReset(BaseModel):
+    password: Optional[str] = None
+    pin: Optional[str] = None
+
 class VoucherRedeem(BaseModel):
     code: str
 
@@ -366,6 +370,36 @@ async def get_users(admin: dict = Depends(require_role(["admin"]))):
         u["_id"] = str(u["_id"])
     return users
 
+@api_router.delete("/users/{user_id}")
+async def delete_user(user_id: str, admin: dict = Depends(require_role(["admin"]))):
+    if user_id == admin["_id"]:
+        raise HTTPException(status_code=400, detail="Tidak bisa menghapus akun sendiri")
+    target = await db.users.find_one({"_id": ObjectId(user_id)})
+    if not target:
+        raise HTTPException(status_code=404, detail="User tidak ditemukan")
+    if target["role"] == "admin" and await db.users.count_documents({"role": "admin"}) <= 1:
+        raise HTTPException(status_code=400, detail="Tidak bisa menghapus admin terakhir")
+    await db.users.delete_one({"_id": ObjectId(user_id)})
+    return {"message": "User berhasil dihapus"}
+
+@api_router.put("/users/{user_id}/reset")
+async def reset_user_credentials(user_id: str, data: UserReset, admin: dict = Depends(require_role(["admin"]))):
+    if not data.password and not data.pin:
+        raise HTTPException(status_code=400, detail="Isi password baru atau PIN baru")
+    if data.password and len(data.password) < 6:
+        raise HTTPException(status_code=400, detail="Password minimal 6 karakter")
+    if data.pin and (not data.pin.isdigit() or not 4 <= len(data.pin) <= 6):
+        raise HTTPException(status_code=400, detail="PIN harus 4-6 digit angka")
+    update = {}
+    if data.password:
+        update["password_hash"] = hash_password(data.password)
+    if data.pin:
+        update["pin_hash"] = hash_password(data.pin)
+    result = await db.users.update_one({"_id": ObjectId(user_id)}, {"$set": update})
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="User tidak ditemukan")
+    return {"message": "Kredensial berhasil direset"}
+
 # ==================== VOUCHER ROUTES ====================
 
 @api_router.post("/vouchers")
@@ -427,7 +461,12 @@ async def get_vouchers(
 ):
     """Get all vouchers with optional filtering"""
     query = {}
-    if status:
+    if status == "expiring":
+        settings = await get_settings_doc()
+        now = datetime.now(timezone.utc)
+        query["status"] = "active"
+        query["expires_at"] = {"$gt": now, "$lte": now + timedelta(days=settings["expiry_warning_days"])}
+    elif status:
         query["status"] = status
     
     skip = (page - 1) * limit

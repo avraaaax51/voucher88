@@ -233,26 +233,15 @@ const CashierMode = () => {
             data-testid="result-card"
           >
             <CardContent className="p-6">
-              <div className="flex items-center justify-center mb-4">
-                {result.success ? (
-                  <div className="w-20 h-20 bg-emerald-500 rounded-full flex items-center justify-center pulse-success">
-                    <CheckCircle2 className="w-10 h-10 text-white" />
-                  </div>
-                ) : (
-                  <div className="w-20 h-20 bg-red-500 rounded-full flex items-center justify-center">
-                    <XCircle className="w-10 h-10 text-white" />
-                  </div>
-                )}
+              <div className="flex items-center justify-center my-4">
+                <div
+                  className={`comic-stamp ${result.success ? "comic-stamp-ok" : "comic-stamp-fail"}`}
+                  data-testid="result-stamp"
+                >
+                  {result.success ? <CheckCircle2 className="w-12 h-12 sm:w-16 sm:h-16" strokeWidth={3} /> : <XCircle className="w-12 h-12 sm:w-16 sm:h-16" strokeWidth={3} />}
+                  <span data-testid="result-message">{result.success ? "BERHASIL!" : "DITOLAK!"}</span>
+                </div>
               </div>
-              
-              <h2 
-                className={`text-xl font-bold text-center mb-2 ${
-                  result.success ? "text-emerald-700" : "text-red-700"
-                }`}
-                data-testid="result-message"
-              >
-                {result.success ? "BERHASIL!" : "GAGAL"}
-              </h2>
               
               <p className="text-center text-gray-600 mb-4">{result.message}</p>
               

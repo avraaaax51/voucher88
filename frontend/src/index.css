@@ -133,6 +133,34 @@ code {
     }
 }
 
+/* Comic stamp for cashier result */
+@keyframes stamp-in {
+    0% { transform: rotate(-8deg) scale(2.2); opacity: 0; }
+    60% { transform: rotate(-8deg) scale(0.92); opacity: 1; }
+    80% { transform: rotate(-8deg) scale(1.05); }
+    100% { transform: rotate(-8deg) scale(1); }
+}
+.comic-stamp {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.9rem 1.6rem;
+    border: 5px solid currentColor;
+    border-radius: 1.25rem;
+    outline: 3px dashed currentColor;
+    outline-offset: 6px;
+    font-family: var(--font-heading);
+    font-size: clamp(2.2rem, 7vw, 3.5rem);
+    line-height: 1;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    background: #fff;
+    box-shadow: 6px 6px 0 0 var(--ink);
+    animation: stamp-in 0.55s cubic-bezier(0.2, 1.4, 0.4, 1) both;
+}
+.comic-stamp-ok { color: #047857; }
+.comic-stamp-fail { color: #b91c1c; }
+
 /* Print styles for thermal printer 80mm */
 @media print {
     @page {

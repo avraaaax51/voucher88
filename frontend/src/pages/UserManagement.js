@@ -36,7 +36,7 @@ import {
 } from "../components/ui/select";
 import { Badge } from "../components/ui/badge";
 import { toast } from "sonner";
-import { Users, UserPlus, Loader2, Shield, ScanLine } from "lucide-react";
+import { Users, UserPlus, Loader2, Shield, ScanLine, KeyRound, Trash2 } from "lucide-react";
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
 
@@ -45,6 +45,9 @@ const UserManagement = () => {
   const [loading, setLoading] = useState(true);
   const [createLoading, setCreateLoading] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [resetTarget, setResetTarget] = useState(null);
+  const [resetForm, setResetForm] = useState({ password: "", pin: "" });
+  const [resetLoading, setResetLoading] = useState(false);
   const [formData, setFormData] = useState({
     email: "",
     password: "",
@@ -71,6 +74,44 @@ const UserManagement = () => {
   useEffect(() => {
     fetchUsers();
   }, [fetchUsers]);
+
+  const handleDelete = async (u) => {
+    if (!window.confirm(`Hapus user ${u.name} (${u.email})?`)) return;
+    try {
+      const res = await fetch(`${API_URL}/api/users/${u._id}`, { method: "DELETE", credentials: "include" });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.detail || "Gagal menghapus user");
+      toast.success(body.message);
+      fetchUsers();
+    } catch (err) {
+      toast.error(err.message);
+    }
+  };
+
+  const handleReset = async (e) => {
+    e.preventDefault();
+    setResetLoading(true);
+    try {
+      const payload = {};
+      if (resetForm.password) payload.password = resetForm.password;
+      if (resetForm.pin) payload.pin = resetForm.pin;
+      const res = await fetch(`${API_URL}/api/users/${resetTarget._id}/reset`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(payload),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.detail || "Gagal mereset");
+      toast.success(body.message);
+      setResetTarget(null);
+      setResetForm({ password: "", pin: "" });
+    } catch (err) {
+      toast.error(err.message);
+    } finally {
+      setResetLoading(false);
+    }
+  };
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -324,6 +365,7 @@ const UserManagement = () => {
                       <TableHead>Email</TableHead>
                       <TableHead>Role</TableHead>
                       <TableHead>Dibuat</TableHead>
+                      <TableHead className="text-right">Aksi</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -355,6 +397,16 @@ const UserManagement = () => {
                         <TableCell className="text-muted-foreground">
                           {formatDate(user.created_at)}
                         </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex justify-end gap-1">
+                            <Button variant="ghost" size="icon" title="Reset password / PIN" onClick={() => setResetTarget(user)} data-testid={`btn-reset-user-${user._id}`}>
+                              <KeyRound className="w-4 h-4" />
+                            </Button>
+                            <Button variant="ghost" size="icon" title="Hapus user" className="text-red-600 hover:text-red-700" onClick={() => handleDelete(user)} data-testid={`btn-delete-user-${user._id}`}>
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -363,6 +415,33 @@ const UserManagement = () => {
             )}
           </CardContent>
         </Card>
+
+        <Dialog open={!!resetTarget} onOpenChange={(o) => !o && setResetTarget(null)}>
+          <DialogContent data-testid="reset-user-dialog">
+            <DialogHeader>
+              <DialogTitle>Reset Kredensial</DialogTitle>
+              <DialogDescription>{resetTarget?.name} · {resetTarget?.email}. Kosongkan kolom yang tidak ingin diubah.</DialogDescription>
+            </DialogHeader>
+            <form onSubmit={handleReset} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="reset-password">Password Baru</Label>
+                <Input id="reset-password" type="password" minLength={6} value={resetForm.password} onChange={(e) => setResetForm((p) => ({ ...p, password: e.target.value }))} placeholder="Minimal 6 karakter" data-testid="input-reset-password" />
+              </div>
+              {resetTarget?.role === "kasir" && (
+                <div className="space-y-2">
+                  <Label htmlFor="reset-pin">PIN Baru</Label>
+                  <Input id="reset-pin" inputMode="numeric" pattern="[0-9]{4,6}" maxLength={6} value={resetForm.pin} onChange={(e) => setResetForm((p) => ({ ...p, pin: e.target.value.replace(/\D/g, "") }))} placeholder="4-6 digit" data-testid="input-reset-pin" />
+                </div>
+              )}
+              <DialogFooter>
+                <Button type="submit" disabled={resetLoading || (!resetForm.password && !resetForm.pin)} data-testid="btn-submit-reset">
+                  {resetLoading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                  Simpan
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
       </div>
     </AdminLayout>
   );

@@ -1,0 +1,29 @@
+{
+  "summary": "Iteration 5 covered 4 new features: (1) GET /api/vouchers?status=expiring filters to active vouchers expiring within settings.expiry_warning_days (verified in-window inclusion + out-of-window exclusion + list content matches predicate). (2) User management endpoints PUT /api/users/{id}/reset & DELETE /api/users/{id} with all specified guards (empty body 400, short pin/password 400, self-delete 400, unknown id 404, kasir role 403, successful reset changes password AND pin so new pin logs in and old pin fails). (3) Frontend Kelola User rows expose btn-reset-user-<id>/btn-delete-user-<id>, reset dialog exposes input-reset-password and (for kasir) input-reset-pin, delete uses window.confirm and refreshes list. (4) Frontend Kelola Voucher filter-expiring shows only 'Segera Kadaluarsa' badges (7/7 cards). (5) Frontend Kasir big comic stamp: comic-stamp-ok/BERHASIL! for a valid code, comic-stamp-fail/DITOLAK! for an invalid code (screenshots show large rotated stamp, clearly legible). (6) Laporan Export CSV downloads laporan-redemption-YYYY-MM-DD.csv containing UTF-8 BOM, ';' delimiter, 'Laporan Redemption Voucher' title, 'Periode:' row, header 'Tanggal;Jumlah Redemption;Total Nominal (Rp)' and TOTAL row. Backend pytest: 27/27 passed. Frontend: all target flows passed.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "CashierMode result card", "issues": ["The '{result.message}' paragraph (e.g. 'Voucher berhasil digunakan!' / 'Kode voucher tidak ditemukan') sits behind the bottom edge of the rotated comic stamp and is partially obscured. Consider adding more margin-top/gap between .comic-stamp and the message paragraph so it does not overlap with the stamp's dashed border."]}
+    ]
+  },
+  "test_report_links": ["/app/backend/tests/backend_test.py", "/app/test_reports/pytest/pytest_results.xml"],
+  "action_items": [
+    "Optional UI polish: increase spacing between the comic stamp and the message text under it in CashierMode.js so the message is not partially hidden by the stamp's rotated dashed border."
+  ],
+  "critical_code_review_comments": [
+    "server.py delete_user does not bulk-cleanup vouchers/redemption_logs created by the deleted user. redemption_logs still reference redeemed_by=<deleted_user_id>. Not a bug but consider soft-delete or cascading anonymisation for audit trails.",
+    "server.py reset_user_credentials does not enforce that the target user exists before validating body; ordering is fine but a 404 check up-front would be clearer.",
+    "UserManagement.js handleDelete uses window.confirm which is not accessible/theming-friendly and cannot be intercepted by shadcn Dialog styling. Consider AlertDialog for consistency.",
+    "Reports.js exportCSV: 'Periode: 30 hari terakhir' string is used when start_date empty, but end_date-only case still labels 'Periode: 30 hari terakhir s/d <end>' which is misleading (server actually uses now-30d..now unless dates provided). Consider aligning UI label to actual server default.",
+    "server.py delete_user & reset_user_credentials call ObjectId(user_id) without try/except: invalid ObjectId strings will raise bson.errors.InvalidId -> 500 instead of 400/404."
+  ],
+  "updated_files": ["/app/backend/tests/backend_test.py"],
+  "success_rate": {"backend": "100% (27/27)", "frontend": "100% of tested flows"},
+  "test_credentials": "admin: avraaaax51@gmail.com / admin123",
+  "seed_data_creation": "Backend tests create/delete kasir 'test_kasir_mgmt@example.com' (cleaned up in teardown). New TEST_ vouchers created with prefixes E3, E6, EX, FA, RD (kept). Settings restored to defaults after test module.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "All 4 new features from iteration 5 verified end-to-end. Regression suite at /app/backend/tests/backend_test.py has 27 tests covering cookie auth, settings, bulk prefix, expiry warning, expiring filter, user reset/delete guards, and redeem. No blocking issues; only a minor CashierMode stamp/message overlap noted."
+}

@@ -106,23 +106,33 @@ const Reports = () => {
       return;
     }
 
-    const headers = ["Tanggal", "Jumlah Redemption", "Total Nominal"];
-    const rows = dailyReport.map((r) => [
-      r.date,
-      r.count,
-      r.total_nominal,
-    ]);
+    const esc = (v) => `"${String(v).replace(/"/g, '""')}"`;
+    const headers = ["Tanggal", "Jumlah Redemption", "Total Nominal (Rp)"];
+    const rows = dailyReport.map((r) => [formatDate(r.date), r.count, r.total_nominal]);
+    const totalCount = dailyReport.reduce((a, r) => a + r.count, 0);
+    const totalNominal = dailyReport.reduce((a, r) => a + r.total_nominal, 0);
+    const period = `Periode: ${dateRange.start_date || "30 hari terakhir"}${dateRange.end_date ? ` s/d ${dateRange.end_date}` : ""}`;
 
     const csvContent = [
-      headers.join(","),
-      ...rows.map((row) => row.join(",")),
-    ].join("\n");
+      ["Laporan Redemption Voucher"],
+      [period],
+      [],
+      headers,
+      ...rows,
+      [],
+      ["TOTAL", totalCount, totalNominal],
+    ]
+      .map((row) => row.map(esc).join(";"))
+      .join("\r\n");
 
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8;" });
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
     link.download = `laporan-redemption-${new Date().toISOString().split("T")[0]}.csv`;
+    document.body.appendChild(link);
     link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(link.href);
     toast.success("Laporan berhasil diunduh");
   };
 

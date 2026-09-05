@@ -127,3 +127,9 @@ Semua fitur inti sudah diimplementasi dan diuji.
 ## Update 2026-09-05 — Tema comic-lite
 - Kartu "Segera Kadaluarsa" dihapus dari Dashboard (badge di Kelola Voucher tetap).
 - Tema global via index.css: font Comic Neue 300 (body) + Patrick Hand (heading), background krem, border tinta 1.5px + offset shadow tipis pada Card/Button/Input/Badge. Template print tidak terpengaruh (inline Arial).
+
+## Update 2026-09-05 — 4 fitur (iteration_5 PASS 27/27 backend + UI)
+- Export CSV Laporan: BOM UTF-8, delimiter ";", judul+periode, baris TOTAL (Excel-friendly).
+- Filter "Segera Kadaluarsa" (status=expiring) di Kelola Voucher, dihitung backend dari expiry_warning_days.
+- Mode Kasir: stempel komik besar BERHASIL!/DITOLAK! (.comic-stamp, animasi stamp-in).
+- Kelola User: DELETE /api/users/{id} (tak bisa hapus diri/admin terakhir), PUT /api/users/{id}/reset (password/PIN). Akun uji TEST_kasir dihapus.

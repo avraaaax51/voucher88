@@ -156,6 +156,7 @@ const VoucherManagement = () => {
             <SelectContent>
               <SelectItem value="all">Semua Status</SelectItem>
               <SelectItem value="active">Aktif</SelectItem>
+              <SelectItem value="expiring" data-testid="filter-expiring">Segera Kadaluarsa</SelectItem>
               <SelectItem value="redeemed">Terpakai</SelectItem>
               <SelectItem value="expired">Kadaluarsa</SelectItem>
             </SelectContent>

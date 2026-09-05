@@ -260,3 +260,138 @@ class TestRedeemRegression:
         assert r.status_code == 200
         r2 = admin_session.get(f"{BASE_URL}/api/reports/daily")
         assert r2.status_code == 200
+
+
+# ==================== Iteration 5: New features ====================
+
+# --- GET /api/vouchers?status=expiring filters correctly ---
+
+class TestVoucherStatusExpiring:
+    def test_status_expiring_returns_only_within_threshold(self, admin_session):
+        # Ensure expiry_warning_days=7 (default)
+        admin_session.put(f"{BASE_URL}/api/settings", json={
+            "store_prefix": "Toko", "store_name": "ANEKA 88", "store_branch": "MANGON",
+            "promo_line1": "BELANJA LEBIH HEMAT", "promo_line2": "DI TOKO ANEKA 88 MANGON",
+            "expiry_warning_days": 7,
+        })
+        # Create one expiring in 3 days (should be in list)
+        exp3 = (datetime.now(timezone.utc) + timedelta(days=3)).isoformat()
+        r1 = admin_session.post(f"{BASE_URL}/api/vouchers", json={
+            "title": "TEST_expiring_3d", "nominal": 1000, "terms": "", "expires_at": exp3, "quantity": 1, "prefix": "E3"
+        })
+        assert r1.status_code == 200
+        code_in = r1.json()["vouchers"][0]["code"]
+
+        # One expiring in 60 days (should NOT be in list)
+        exp60 = (datetime.now(timezone.utc) + timedelta(days=60)).isoformat()
+        r2 = admin_session.post(f"{BASE_URL}/api/vouchers", json={
+            "title": "TEST_expiring_60d", "nominal": 1000, "terms": "", "expires_at": exp60, "quantity": 1, "prefix": "E6"
+        })
+        assert r2.status_code == 200
+        code_out = r2.json()["vouchers"][0]["code"]
+
+        r = admin_session.get(f"{BASE_URL}/api/vouchers?status=expiring&limit=200")
+        assert r.status_code == 200
+        codes = [v["code"] for v in r.json()["vouchers"]]
+        assert code_in in codes
+        assert code_out not in codes
+
+        # All returned vouchers must be active + expires within 7 days
+        now = datetime.now(timezone.utc)
+        for v in r.json()["vouchers"]:
+            assert v["status"] == "active"
+            ea = datetime.fromisoformat(v["expires_at"].replace("Z", "+00:00"))
+            if ea.tzinfo is None:
+                ea = ea.replace(tzinfo=timezone.utc)
+            assert now < ea <= now + timedelta(days=7)
+
+    def test_status_active_unchanged(self, admin_session):
+        r = admin_session.get(f"{BASE_URL}/api/vouchers?status=active&limit=5")
+        assert r.status_code == 200
+        for v in r.json()["vouchers"]:
+            assert v["status"] == "active"
+
+
+# --- User management: reset + delete ---
+
+@pytest.fixture(scope="class")
+def test_kasir(admin_session):
+    """Create a kasir user for management tests"""
+    email = "test_kasir_mgmt@example.com"
+    # cleanup preexisting
+    users = admin_session.get(f"{BASE_URL}/api/users").json()
+    for u in users:
+        if u["email"] == email:
+            admin_session.delete(f"{BASE_URL}/api/users/{u['_id']}")
+    r = admin_session.post(f"{BASE_URL}/api/auth/register", json={
+        "email": email, "password": "kasir123", "name": "TEST Kasir Mgmt", "role": "kasir", "pin": "4321"
+    })
+    assert r.status_code == 200, r.text
+    uid = r.json()["_id"]
+    yield {"id": uid, "email": email}
+    # teardown - ensure gone
+    admin_session.delete(f"{BASE_URL}/api/users/{uid}")
+
+
+class TestUserManagement:
+    def test_reset_password_and_pin_success(self, admin_session, test_kasir):
+        r = admin_session.put(f"{BASE_URL}/api/users/{test_kasir['id']}/reset",
+                              json={"password": "newpass123", "pin": "5566"})
+        assert r.status_code == 200
+
+        # login with new password
+        s2 = requests.Session()
+        lr = s2.post(f"{BASE_URL}/api/auth/login",
+                     json={"email": test_kasir["email"], "password": "newpass123"})
+        assert lr.status_code == 200
+
+        # old pin fails
+        s3 = requests.Session()
+        old = s3.post(f"{BASE_URL}/api/auth/pin-login", json={"pin": "4321"})
+        assert old.status_code == 401
+
+        # new pin works
+        s4 = requests.Session()
+        new = s4.post(f"{BASE_URL}/api/auth/pin-login", json={"pin": "5566"})
+        assert new.status_code == 200
+
+    def test_reset_empty_body_returns_400(self, admin_session, test_kasir):
+        r = admin_session.put(f"{BASE_URL}/api/users/{test_kasir['id']}/reset", json={})
+        assert r.status_code == 400
+
+    def test_reset_short_pin_returns_400(self, admin_session, test_kasir):
+        r = admin_session.put(f"{BASE_URL}/api/users/{test_kasir['id']}/reset", json={"pin": "12"})
+        assert r.status_code == 400
+
+    def test_reset_short_password_returns_400(self, admin_session, test_kasir):
+        r = admin_session.put(f"{BASE_URL}/api/users/{test_kasir['id']}/reset", json={"password": "abc"})
+        assert r.status_code == 400
+
+    def test_delete_self_returns_400(self, admin_session):
+        me = admin_session.get(f"{BASE_URL}/api/auth/me").json()
+        r = admin_session.delete(f"{BASE_URL}/api/users/{me['_id']}")
+        assert r.status_code == 400
+
+    def test_delete_unknown_returns_404(self, admin_session):
+        r = admin_session.delete(f"{BASE_URL}/api/users/507f1f77bcf86cd799439011")
+        assert r.status_code == 404
+
+    def test_kasir_role_cannot_reset_or_delete(self, admin_session, test_kasir):
+        # login as kasir with current password (was reset above to newpass123)
+        ks = requests.Session()
+        lr = ks.post(f"{BASE_URL}/api/auth/login",
+                     json={"email": test_kasir["email"], "password": "newpass123"})
+        assert lr.status_code == 200
+        # kasir attempts DELETE and PUT reset
+        me = admin_session.get(f"{BASE_URL}/api/auth/me").json()
+        d = ks.delete(f"{BASE_URL}/api/users/{me['_id']}")
+        assert d.status_code == 403
+        p = ks.put(f"{BASE_URL}/api/users/{test_kasir['id']}/reset", json={"password": "abcdef"})
+        assert p.status_code == 403
+
+    def test_delete_kasir_success_and_removed(self, admin_session, test_kasir):
+        r = admin_session.delete(f"{BASE_URL}/api/users/{test_kasir['id']}")
+        assert r.status_code == 200
+        users = admin_session.get(f"{BASE_URL}/api/users").json()
+        assert not any(u["_id"] == test_kasir["id"] for u in users)
+
