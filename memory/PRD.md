@@ -149,3 +149,6 @@ Semua fitur inti sudah diimplementasi dan diuji.
 - useSound.js (Web Audio chime/buzzer, toggle btn-toggle-sound, localStorage voucherku_sound).
 - GET /api/redemptions/mine → riwayat hari ini per user; kartu "Riwayat Hari Ini" di /kasir.
 - Kelola Voucher: checkbox per voucher, pilih semua, bar aksi massal Cetak/Hapus; POST /api/vouchers/bulk-delete.
+
+## Update 2026-09-05 — Laporan Per Kasir
+- /api/reports/daily kini juga mengembalikan by_cashier (agregasi redemption_logs per redeemed_by). Tabel "Laporan Per Kasir" di Laporan (mengikuti filter tanggal) + ikut diekspor ke CSV. Self-tested (curl + screenshot).

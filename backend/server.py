@@ -747,8 +747,28 @@ async def get_daily_report(
     
     result = await db.redemption_logs.aggregate(pipeline).to_list(100)
     
+    cashier_pipeline = [
+        {"$match": {"redeemed_at": {"$gte": start, "$lte": end}}},
+        {"$group": {
+            "_id": "$redeemed_by",
+            "name": {"$last": "$redeemed_by_name"},
+            "count": {"$sum": 1},
+            "total_nominal": {"$sum": "$nominal"},
+            "last_redeemed_at": {"$max": "$redeemed_at"},
+        }},
+        {"$sort": {"count": -1, "total_nominal": -1}},
+    ]
+    by_cashier = await db.redemption_logs.aggregate(cashier_pipeline).to_list(100)
+    
     return {
         "report": [{"date": r["_id"], "count": r["count"], "total_nominal": r["total_nominal"]} for r in result],
+        "by_cashier": [{
+            "user_id": str(c["_id"]),
+            "name": c.get("name") or "-",
+            "count": c["count"],
+            "total_nominal": c["total_nominal"],
+            "last_redeemed_at": c["last_redeemed_at"].isoformat() if isinstance(c["last_redeemed_at"], datetime) else c["last_redeemed_at"],
+        } for c in by_cashier],
         "start_date": start.isoformat(),
         "end_date": end.isoformat()
     }

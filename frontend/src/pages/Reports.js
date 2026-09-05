@@ -27,6 +27,7 @@ import {
   Download,
   DollarSign,
   Ticket,
+  Users,
 } from "lucide-react";
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
@@ -35,6 +36,7 @@ const Reports = () => {
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState(null);
   const [dailyReport, setDailyReport] = useState([]);
+  const [byCashier, setByCashier] = useState([]);
   const [dateRange, setDateRange] = useState({
     start_date: "",
     end_date: "",
@@ -67,6 +69,7 @@ const Reports = () => {
       if (!response.ok) throw new Error("Gagal mengambil laporan harian");
       const data = await response.json();
       setDailyReport(data.report || []);
+      setByCashier(data.by_cashier || []);
     } catch (err) {
       toast.error(err.message);
     } finally {
@@ -121,6 +124,10 @@ const Reports = () => {
       ...rows,
       [],
       ["TOTAL", totalCount, totalNominal],
+      [],
+      ["Laporan Per Kasir"],
+      ["Kasir", "Jumlah Voucher", "Total Nominal (Rp)"],
+      ...byCashier.map((c) => [c.name, c.count, c.total_nominal]),
     ]
       .map((row) => row.map(esc).join(";"))
       .join("\r\n");
@@ -292,6 +299,46 @@ const Reports = () => {
                 Terapkan
               </Button>
             </div>
+          </CardContent>
+        </Card>
+
+        {/* Per Cashier */}
+        <Card className="border" data-testid="cashier-report-card">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2"><Users className="w-5 h-5" /> Laporan Per Kasir</CardTitle>
+            <CardDescription>Jumlah voucher dan total nominal yang di-scan tiap kasir pada periode terpilih</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {byCashier.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-6" data-testid="cashier-report-empty">Belum ada penukaran pada periode ini</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>#</TableHead>
+                      <TableHead>Kasir</TableHead>
+                      <TableHead className="text-right">Jumlah Voucher</TableHead>
+                      <TableHead className="text-right">Total Nominal</TableHead>
+                      <TableHead className="text-right">Terakhir Scan</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {byCashier.map((c, i) => (
+                      <TableRow key={c.user_id} data-testid={`cashier-row-${c.user_id}`}>
+                        <TableCell className="font-bold">{i + 1}</TableCell>
+                        <TableCell className="font-bold">{c.name}</TableCell>
+                        <TableCell className="text-right" data-testid={`cashier-count-${c.user_id}`}>{c.count}</TableCell>
+                        <TableCell className="text-right font-bold text-emerald-700" data-testid={`cashier-nominal-${c.user_id}`}>{formatCurrency(c.total_nominal)}</TableCell>
+                        <TableCell className="text-right text-muted-foreground">
+                          {new Date(c.last_redeemed_at).toLocaleString("id-ID", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
           </CardContent>
         </Card>
 
