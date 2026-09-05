@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import AdminLayout from "../components/AdminLayout";
-import { PrintVoucher } from "../components/PrintVoucher";
+import { PrintVoucher, PrintPortal } from "../components/PrintVoucher";
 import { useStoreSettings } from "../hooks/useStoreSettings";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
@@ -314,11 +314,11 @@ const CreateVoucher = () => {
               ))}
             </div>
 
-            <div className="print-area" data-testid="print-area" style={{ display: 'none' }}>
+            <PrintPortal testId="print-area">
               {createdVouchers.map((voucher, idx) => (
                 <PrintVoucher key={voucher.code} voucher={voucher} settings={settings} pageBreak={idx < createdVouchers.length - 1} />
               ))}
-            </div>
+            </PrintPortal>
           </div>
         )}
       </div>

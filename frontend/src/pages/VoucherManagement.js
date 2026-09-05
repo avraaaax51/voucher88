@@ -1,8 +1,8 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Link } from "react-router-dom";
 import axios from "axios";
 import AdminLayout from "../components/AdminLayout";
-import { PrintVoucher } from "../components/PrintVoucher";
+import { PrintVoucher, PrintPortal } from "../components/PrintVoucher";
 import { useStoreSettings, isExpiringSoon } from "../hooks/useStoreSettings";
 import { useAutoRefresh } from "../hooks/useAutoRefresh";
 import { Button } from "../components/ui/button";
@@ -51,7 +51,6 @@ const VoucherManagement = () => {
   const [bulkPrintList, setBulkPrintList] = useState(null);
   const [selectedVoucher, setSelectedVoucher] = useState(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
-  const printRef = useRef(null);
 
   const fetchVouchers = useCallback(async () => {
     try {
@@ -483,13 +482,13 @@ const VoucherManagement = () => {
         </Dialog>
 
         {(bulkPrintList || selectedVoucher) && (
-          <div className="print-voucher" ref={printRef} data-testid="print-template" style={{ display: 'none' }}>
+          <PrintPortal testId="print-template">
             {bulkPrintList
               ? bulkPrintList.map((v, idx) => (
                   <PrintVoucher key={v.code} voucher={v} settings={settings} pageBreak={idx < bulkPrintList.length - 1} />
                 ))
               : <PrintVoucher voucher={selectedVoucher} settings={settings} />}
-          </div>
+          </PrintPortal>
         )}
       </div>
     </AdminLayout>

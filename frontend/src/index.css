@@ -166,74 +166,41 @@ code {
 .comic-stamp-ok { color: #047857; }
 .comic-stamp-fail { color: #b91c1c; }
 
-/* Print styles for thermal printer 80mm */
+/* Print root lives outside #root; hidden on screen */
+#print-root { display: none; }
+
+/* Print styles for Epson TM-T82 (80mm paper, 72mm printable) */
 @media print {
     @page {
-        size: 80mm auto;
+        size: 72mm auto;
         margin: 0;
-        padding: 0;
     }
-    
-    /* Hide everything by default */
     html, body {
-        width: 80mm !important;
+        width: 72mm !important;
         margin: 0 !important;
         padding: 0 !important;
-        background: white !important;
+        background: #fff !important;
     }
-    
-    body * {
-        visibility: hidden !important;
-    }
-    
-    /* Show print-voucher and all its children */
-    .print-voucher,
-    .print-voucher *,
-    .print-area,
-    .print-area * {
-        visibility: visible !important;
-    }
-    
-    .print-voucher,
-    .print-area {
+    #root { display: none !important; }
+    #print-root {
         display: block !important;
-        position: fixed !important;
-        left: 0 !important;
-        top: 0 !important;
-        width: 80mm !important;
-        max-width: 80mm !important;
-        background: white !important;
-        color: black !important;
-        -webkit-print-color-adjust: exact !important;
-        print-color-adjust: exact !important;
-        z-index: 99999 !important;
-    }
-    
-    .print-voucher img,
-    .print-area img {
-        display: inline-block !important;
-        max-width: 100% !important;
+        width: 72mm;
+        margin: 0;
+        padding: 0;
+        background: #fff;
+        color: #000;
         -webkit-print-color-adjust: exact !important;
         print-color-adjust: exact !important;
     }
-    
-    .print-voucher svg,
-    .print-area svg {
-        display: inline-block !important;
+    .print-voucher-card {
+        break-inside: avoid;
+        page-break-inside: avoid;
     }
-    
-    /* Hide elements with no-print or print:hidden */
-    .no-print,
-    .print\:hidden {
-        display: none !important;
-        visibility: hidden !important;
+    .print-voucher-card + .print-voucher-card {
+        break-before: page;
+        page-break-before: always;
     }
-    
-    /* Show elements with print:block */
-    .print\:block {
-        display: block !important;
-        visibility: visible !important;
-    }
+    .print-voucher-card img { max-width: 100%; }
 }
 
 /* Custom scrollbar */

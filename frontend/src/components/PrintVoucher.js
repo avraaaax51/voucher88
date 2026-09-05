@@ -1,4 +1,12 @@
+import { createPortal } from "react-dom";
 import { DEFAULT_SETTINGS } from "../hooks/useStoreSettings";
+
+// Renders children into #print-root (outside the app tree) so @media print can hide #root
+export const PrintPortal = ({ children, testId }) => {
+  const target = document.getElementById("print-root");
+  if (!target) return null;
+  return createPortal(<div className="print-sheet" data-testid={testId}>{children}</div>, target);
+};
 
 const F = "Arial, Helvetica, sans-serif";
 
@@ -31,21 +39,25 @@ export const PrintVoucher = ({ voucher, settings = {}, pageBreak = false }) => {
 
   return (
     <div
+      className="print-voucher-card"
       data-testid="print-voucher-card"
       style={{
-        width: "80mm",
+        width: "72mm",
         boxSizing: "border-box",
-        padding: "2mm 2.5mm 6mm",
+        margin: "0 auto",
+        padding: "1.5mm 1mm 4mm",
         background: "#fff",
         color: "#000",
         fontFamily: F,
         pageBreakAfter: pageBreak ? "always" : "auto",
+        breakAfter: pageBreak ? "page" : "auto",
+        breakInside: "avoid",
       }}
     >
-      <div style={{ border: "0.4mm solid #000", borderRadius: "2.5mm", padding: "5mm 3.5mm 4mm", boxSizing: "border-box" }}>
+      <div style={{ border: "0.4mm solid #000", borderRadius: "2.5mm", padding: "4mm 3mm 3.5mm", boxSizing: "border-box" }}>
         <div style={{ textAlign: "center", lineHeight: 1 }}>
           <div style={{ fontSize: "18px", fontWeight: 700 }}>{s.store_prefix}</div>
-          <div style={{ fontSize: "40px", fontWeight: 900, letterSpacing: "-1px", marginTop: "1mm" }}>
+          <div style={{ fontSize: "36px", fontWeight: 900, letterSpacing: "-1px", marginTop: "1mm" }}>
             {nameText}{nameNum && <span style={{ fontSize: "34px", marginLeft: "1mm" }}>{nameNum}</span>}
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: "2mm", marginTop: "1.5mm" }}>
@@ -79,7 +91,7 @@ export const PrintVoucher = ({ voucher, settings = {}, pageBreak = false }) => {
 
         <div style={{ textAlign: "center", lineHeight: 1 }}>
           <div style={{ fontSize: "13px", fontWeight: 700, letterSpacing: "1px" }}>NILAI VOUCHER</div>
-          <div style={{ fontSize: "44px", fontWeight: 900, letterSpacing: "-1px", marginTop: "1.5mm" }}>
+          <div style={{ fontSize: "40px", fontWeight: 900, letterSpacing: "-1px", marginTop: "1.5mm" }}>
             Rp.{voucher.nominal.toLocaleString("id-ID")}
           </div>
         </div>

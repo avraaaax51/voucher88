@@ -1,0 +1,24 @@
+{
+  "summary": "Frontend-only regression on Epson TM-T82 print fix (PrintPortal + @media print). Login Admin/123456 OK. All print scenarios verified via DOM + Playwright page.emulate_media('print') + page.pdf(prefer_css_page_size=True). Results: (1) Kelola Voucher single print -> #print-root has 1 [data-testid=print-voucher-card] under [data-testid=print-template], window.print stub called 1x. (2) Screen media: #print-root computed display=none (does not affect layout). (3) Create 5 vouchers (2027-01-01T10:00, qty 5) -> [data-testid=print-area] contains exactly 5 cards. Under print media: #root display=none, #print-root display=block; each card width=272.125px (~72mm), offsetLeft=0 within 272.125px parent (centered); all 5 QR images loaded; PDF has EXACTLY 5 pages -> 5 cuts. (4) Bulk print 3 vouchers -> print-template has 3 cards, PDF has 3 pages, window.print called 1x. (5) After bulk, single print again -> #print-root has exactly 1 card (no leftovers). (6) Settings page preview: [data-testid=settings-print-preview] visible with voucher card inline (not portaled to #print-root, #print-root cards=0). (7) No JS pageerrors on vouchers/create/settings; only benign pre-login GET /api/auth/me 401s.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "PrintPortal returns null on first render if #print-root not yet in DOM; safe here because public/index.html includes it, but wrap in useEffect+state if that ever moves.",
+    "handlePrint uses setTimeout(300ms) before window.print(); QR images loaded in test but on slow first paint the portal may fire print before layout; consider requestAnimationFrame+onload sync.",
+    "@page size 72mm auto is CSS-side; Chromium page.pdf honored break-before:page (5/3 pages produced) but mediabox reported 612x792 pt in this Playwright build. Real Epson driver will use @page from CSS; verify on physical printer that per-page cut occurs (proxy passed)."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a", "frontend": "100%"},
+  "test_credentials": "Admin / 123456 (cookie-only)",
+  "seed_data_creation": "Created 5 vouchers via UI with title 'TEST_PRINT_5' nominal 50000 expires 2027-01-01T10:00.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Print fix works end-to-end at DOM/CSS level. PDF page count == card count == expected cuts for both single, create-batch, and bulk-print flows. Portal cleanly re-populated on new print (no stale cards). Only physical Epson TM-T82III cutter behavior cannot be tested in this env; PDF page-count proxy validated.",
+  "rca of the issue": "Old implementation used position:fixed/visibility hacks which collapsed pages and printed a single-page bordered artifact. Fix moved print DOM into a React portal at #print-root (outside #root), hid #root under @media print, applied @page size 72mm auto margin 0, and used break-before:page between consecutive .print-voucher-card so N vouchers = N pages = N cuts. Verified with Chromium page.pdf: 5 vouchers -> 5 pages, 3 -> 3, 1 -> 1."
+}

@@ -157,3 +157,7 @@ Semua fitur inti sudah diimplementasi dan diuji.
 - Middleware Cache-Control no-store untuk /api; hook useAutoRefresh (focus/visibility + 30s) di Dashboard, Kelola Voucher, Laporan, Kasir.
 - Hapus voucher (single/bulk) juga menghapus redemption_logs terkait; orphan logs dibersihkan.
 - Catatan: URL preview vs domain publish = database berbeda (bukan bug).
+
+## Update 2026-09-05 — Fix print TM-T82 (iteration_10)
+- Print via React portal ke #print-root (di luar #root); @media print: #root none, @page 72mm auto margin 0, kartu 72mm, break-before page per voucher (1 voucher = 1 halaman = 1 cut). PDF 5 voucher = 5 halaman terverifikasi.
+- Catatan driver Epson: set paper 80mm, "Paper Cut: cut per page / at end of document page", margin 0 di dialog print browser.
