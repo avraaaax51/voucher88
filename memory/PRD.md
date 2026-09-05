@@ -101,3 +101,10 @@ Semua fitur inti sudah diimplementasi dan diuji.
 - [ ] Penambahan data-testid ke semua elemen interaktif
 - [ ] Validasi kamera scanner di browser
 - [ ] Refactor: Extract PrintVoucher component (menghilangkan duplikasi template)
+
+
+## Update 2026-09-05 — Print template v3 (shared component)
+- Template print dipindah ke komponen shared `frontend/src/components/PrintVoucher.js`, dipakai oleh VoucherManagement (cetak individual) dan CreateVoucher (cetak massal, page-break per voucher).
+- Desain mengikuti gambar referensi terbaru: border rounded, header Toko/ANEKA88/MANGON, ribbon hitam "VOUCHER BELANJA" dengan ujung berlekuk, NILAI VOUCHER + nominal besar, QR 40mm, banner hitam rounded untuk syarat/promo (baris pertama lebih besar), kotak tanggal berlaku dengan ikon kalender.
+- Konten dinamis: nominal, QR, syarat (fallback "BELANJA LEBIH HEMAT / DI TOKO ANEKA 88 MANGON"), tanggal expired.
+- Testing agent iteration_3: PASS (print media render, window.print terpanggil, bulk 2 voucher). Belum dikonfirmasi user pada printer fisik.
