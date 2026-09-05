@@ -5,6 +5,7 @@ ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
 from fastapi import FastAPI, APIRouter, HTTPException, Request, Response, Depends
+from fastapi.responses import FileResponse
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 from bson import ObjectId
@@ -130,6 +131,9 @@ class StoreSettings(BaseModel):
     print_scale: int = 100
     print_feed_mm: int = 6
     print_page_height_mm: int = 150
+    print_method: str = "browser"
+    print_agent_url: str = "http://localhost:9100"
+    print_printer_name: str = ""
 
 DEFAULT_SETTINGS = StoreSettings().model_dump()
 
@@ -726,6 +730,8 @@ async def update_settings(data: StoreSettings, admin: dict = Depends(require_rol
         raise HTTPException(status_code=400, detail="Ambang peringatan harus 1-365 hari")
     if not 50 <= data.print_paper_mm <= 120 or not 40 <= data.print_width_mm <= data.print_paper_mm:
         raise HTTPException(status_code=400, detail="Lebar cetak harus 40mm s/d lebar kertas (50-120mm)")
+    if data.print_method not in ("browser", "agent"):
+        raise HTTPException(status_code=400, detail="Metode cetak tidak valid")
     if data.print_page_height_mm != 0 and not 60 <= data.print_page_height_mm <= 400:
         raise HTTPException(status_code=400, detail="Tinggi halaman harus 0 (otomatis) atau 60-400mm")
     if not -20 <= data.print_offset_mm <= 20 or not 50 <= data.print_scale <= 150 or not 0 <= data.print_feed_mm <= 40:
@@ -733,6 +739,13 @@ async def update_settings(data: StoreSettings, admin: dict = Depends(require_rol
     payload = data.model_dump()
     await db.settings.update_one({"_id": "store"}, {"$set": payload}, upsert=True)
     return payload
+
+@api_router.get("/print-agent/download/{filename}")
+async def download_print_agent(filename: str):
+    allowed = {"voucher_print_agent.py": "text/x-python", "jalankan_print_agent.bat": "application/x-bat"}
+    if filename not in allowed:
+        raise HTTPException(status_code=404, detail="File tidak ditemukan")
+    return FileResponse(ROOT_DIR / "static" / filename, media_type=allowed[filename], filename=filename)
 
 @api_router.get("/reports/daily")
 async def get_daily_report(

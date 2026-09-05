@@ -5,6 +5,7 @@ import AdminLayout from "../components/AdminLayout";
 import { PrintVoucher, PrintPortal } from "../components/PrintVoucher";
 import { useStoreSettings, isExpiringSoon } from "../hooks/useStoreSettings";
 import { useAutoRefresh } from "../hooks/useAutoRefresh";
+import { printVouchersDirect } from "../lib/escpos";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Badge } from "../components/ui/badge";
@@ -151,7 +152,18 @@ const VoucherManagement = () => {
     }
   };
 
+  const directPrint = async (list) => {
+    try {
+      await printVouchersDirect(list, settings);
+      markPrinted(list.map((v) => v.code));
+      toast.success(`${list.length} voucher dicetak (auto cut)`);
+    } catch (err) {
+      toast.error(`Agen cetak tidak terhubung: ${err.message}. Jalankan agen di PC ini atau ubah metode cetak di Pengaturan.`);
+    }
+  };
+
   const handlePrint = (voucher) => {
+    if (settings.print_method === "agent") return directPrint([voucher]);
     setBulkPrintList(null);
     setSelectedVoucher(voucher);
     setTimeout(() => {
@@ -169,6 +181,7 @@ const VoucherManagement = () => {
 
   const handleBulkPrint = () => {
     if (selectedVouchers.length === 0) return;
+    if (settings.print_method === "agent") return directPrint(selectedVouchers);
     setSelectedVoucher(null);
     setBulkPrintList(selectedVouchers);
     setTimeout(() => {

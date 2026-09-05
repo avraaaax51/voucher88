@@ -5,9 +5,11 @@ import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
 import { toast } from "sonner";
-import { Loader2, Save, Store, Bell, Trash2, AlertTriangle, Printer } from "lucide-react";
+import { Loader2, Save, Store, Bell, Trash2, AlertTriangle, Printer, Download, Plug, Scissors } from "lucide-react";
 import { DEFAULT_SETTINGS } from "../hooks/useStoreSettings";
 import { PrintVoucher, PrintPortal } from "../components/PrintVoucher";
+import { printVouchersDirect, agentStatus, renderVoucherCanvas } from "../lib/escpos";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
 
@@ -26,6 +28,9 @@ const Settings = () => {
   const [saving, setSaving] = useState(false);
   const [resetConfirm, setResetConfirm] = useState("");
   const [resetting, setResetting] = useState(false);
+  const [agentState, setAgentState] = useState(null);
+  const [testing, setTesting] = useState(false);
+  const [rasterPreview, setRasterPreview] = useState("");
 
   useEffect(() => {
     fetch(`${API_URL}/api/settings`, { credentials: "include" })
@@ -58,9 +63,43 @@ const Settings = () => {
     print_feed_mm: parseInt(f.print_feed_mm, 10),
     print_page_height_mm: parseInt(f.print_page_height_mm, 10) || 0,
   });
-  const handleTestPrint = () => {
+  const handleTestPrint = async () => {
+    if (form.print_method === "agent") {
+      setTesting(true);
+      try {
+        await printVouchersDirect([previewVoucher], printPayload(form));
+        toast.success("Voucher tes dikirim ke printer (dengan auto cut)");
+      } catch (err) {
+        toast.error(`Agen cetak tidak terhubung: ${err.message}`);
+      } finally {
+        setTesting(false);
+      }
+      return;
+    }
     setTimeout(() => window.print(), 200);
   };
+
+  const handleCheckAgent = async () => {
+    setTesting(true);
+    try {
+      const st = await agentStatus(form.print_agent_url);
+      setAgentState({ ok: true, printer: st.printer });
+      toast.success(`Agen terhubung · printer: ${st.printer}`);
+    } catch (err) {
+      setAgentState({ ok: false });
+      toast.error("Agen cetak tidak ditemukan. Pastikan agen berjalan di PC ini.");
+    } finally {
+      setTesting(false);
+    }
+  };
+
+  useEffect(() => {
+    if (form.print_method !== "agent") return;
+    let alive = true;
+    renderVoucherCanvas(previewVoucher, printPayload(form)).then((c) => alive && setRasterPreview(c.toDataURL()));
+    return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.print_method, form.print_width_mm, form.print_scale, form.print_feed_mm, form.store_name, form.store_prefix, form.store_branch, form.promo_line1, form.promo_line2]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -142,6 +181,64 @@ const Settings = () => {
               </CardContent>
             </Card>
 
+            <Card className="border border-emerald-700" data-testid="direct-print-card">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-lg"><Scissors className="w-5 h-5" /> Cetak Langsung + Auto Cut (ESC/POS)</CardTitle>
+                <CardDescription>
+                  Tidak bergantung pada driver/dialog print. Aplikasi mengirim perintah printer langsung — termasuk <b>perintah potong kertas setelah setiap voucher</b> — melalui agen kecil yang berjalan di PC yang terhubung ke printer.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                <div className="space-y-2">
+                  <Label>Metode cetak</Label>
+                  <Select value={form.print_method} onValueChange={(v) => setForm((p) => ({ ...p, print_method: v }))}>
+                    <SelectTrigger data-testid="select-print-method"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="agent" data-testid="print-method-agent">Agen Lokal ESC/POS (auto cut pasti)</SelectItem>
+                      <SelectItem value="browser" data-testid="print-method-browser">Dialog print browser</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Alamat agen</Label>
+                  <Input name="print_agent_url" value={form.print_agent_url || ""} onChange={handleChange} placeholder="http://localhost:9100" data-testid="input-print-agent-url" />
+                </div>
+                <div className="space-y-2">
+                  <Label>Nama printer (opsional)</Label>
+                  <Input name="print_printer_name" value={form.print_printer_name || ""} onChange={handleChange} placeholder="EPSON TM-T82III Receipt" data-testid="input-print-printer-name" />
+                  <p className="text-xs text-muted-foreground">Kosong = printer default Windows</p>
+                </div>
+                <div className="flex flex-wrap gap-2 sm:col-span-2 lg:col-span-3">
+                  <Button type="button" variant="outline" onClick={handleCheckAgent} disabled={testing} data-testid="btn-check-agent">
+                    <Plug className="w-4 h-4 mr-2" /> Tes Koneksi Agen
+                  </Button>
+                  <Button type="button" variant="outline" asChild>
+                    <a href={`${API_URL}/api/print-agent/download/voucher_print_agent.py`} download data-testid="link-download-agent"><Download className="w-4 h-4 mr-2" /> Unduh Agen (Python)</a>
+                  </Button>
+                  <Button type="button" variant="outline" asChild>
+                    <a href={`${API_URL}/api/print-agent/download/jalankan_print_agent.bat`} download data-testid="link-download-bat"><Download className="w-4 h-4 mr-2" /> Unduh Jalankan.bat</a>
+                  </Button>
+                  {agentState && (
+                    <span className={`self-center text-sm font-bold ${agentState.ok ? "text-emerald-700" : "text-red-700"}`} data-testid="agent-status">
+                      {agentState.ok ? `Terhubung · ${agentState.printer}` : "Tidak terhubung"}
+                    </span>
+                  )}
+                </div>
+                <ol className="sm:col-span-2 lg:col-span-3 text-xs text-muted-foreground rounded-lg bg-muted p-3 list-decimal pl-6 space-y-1" data-testid="agent-instructions">
+                  <li>Di PC yang tersambung ke printer: install <b>Python 3</b> (python.org, centang "Add Python to PATH").</li>
+                  <li>Unduh kedua file di atas ke satu folder, jalankan <b>jalankan_print_agent.bat</b> (otomatis memasang pywin32), ketik nama printer atau Enter.</li>
+                  <li>Biarkan jendelanya terbuka. Klik <b>Tes Koneksi Agen</b> — jika Chrome menampilkan izin <i>"akses perangkat di jaringan lokal"</i>, pilih <b>Izinkan</b>. Lalu <b>Cetak Tes</b>: printer mencetak dan memotong.</li>
+                  <li>Pilih metode <b>Agen Lokal</b> dan <b>Simpan</b>. Semua tombol cetak (satuan & massal) otomatis memakai jalur ini dengan potong per voucher.</li>
+                </ol>
+                {form.print_method === "agent" && rasterPreview && (
+                  <div className="sm:col-span-2 lg:col-span-3">
+                    <p className="text-xs font-bold mb-1">Pratinjau bitmap yang dikirim ke printer:</p>
+                    <img src={rasterPreview} alt="Pratinjau ESC/POS" className="border bg-white" style={{ width: "160px" }} data-testid="raster-preview" />
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
             <Card className="border">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-lg"><Printer className="w-5 h-5" /> Pengaturan Cetak (Epson TM-T82)</CardTitle>
@@ -178,8 +275,8 @@ const Settings = () => {
                   <p className="text-xs text-muted-foreground">Wajib diisi agar auto cut per voucher (mis. 150). 0 = panjang otomatis (sering tidak memotong)</p>
                 </div>
                 <div className="space-y-2 flex flex-col justify-end">
-                  <Button type="button" variant="outline" onClick={handleTestPrint} data-testid="btn-test-print">
-                    <Printer className="w-4 h-4 mr-2" /> Cetak Tes
+                  <Button type="button" variant="outline" onClick={handleTestPrint} disabled={testing} data-testid="btn-test-print">
+                    {testing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Printer className="w-4 h-4 mr-2" />} Cetak Tes
                   </Button>
                 </div>
                 <div className="sm:col-span-2 lg:col-span-3 text-xs text-muted-foreground rounded-lg bg-muted p-3" data-testid="print-driver-hint">

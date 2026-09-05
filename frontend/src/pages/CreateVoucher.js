@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import AdminLayout from "../components/AdminLayout";
 import { PrintVoucher, PrintPortal } from "../components/PrintVoucher";
 import { useStoreSettings } from "../hooks/useStoreSettings";
+import { printVouchersDirect } from "../lib/escpos";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
@@ -64,7 +65,17 @@ const CreateVoucher = () => {
   };
 
   const handlePrint = async () => {
-    window.print();
+    if (settings.print_method === "agent") {
+      try {
+        await printVouchersDirect(createdVouchers, settings);
+        toast.success(`${createdVouchers.length} voucher dicetak (auto cut)`);
+      } catch (err) {
+        toast.error(`Agen cetak tidak terhubung: ${err.message}. Jalankan agen di PC ini atau ubah metode cetak di Pengaturan.`);
+        return;
+      }
+    } else {
+      window.print();
+    }
     try {
       await fetch(`${API_URL}/api/vouchers/mark-printed`, {
         method: "POST",
