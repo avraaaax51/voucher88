@@ -8,6 +8,7 @@ import { Input } from "../components/ui/input";
 import { Card, CardContent } from "../components/ui/card";
 import { toast } from "sonner";
 import { useSound } from "../hooks/useSound";
+import { useAutoRefresh } from "../hooks/useAutoRefresh";
 import {
   ScanLine,
   Keyboard,
@@ -50,6 +51,7 @@ const CashierMode = () => {
   useEffect(() => {
     fetchHistory();
   }, [fetchHistory]);
+  useAutoRefresh(fetchHistory);
   const lastScanRef = useRef({ code: "", at: 0 });
 
   const initScanner = useCallback(() => {

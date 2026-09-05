@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { useAutoRefresh } from "../hooks/useAutoRefresh";
 import { Link } from "react-router-dom";
 import axios from "axios";
 import AdminLayout from "../components/AdminLayout";
@@ -40,6 +41,7 @@ const AdminDashboard = () => {
   useEffect(() => {
     fetchStats();
   }, [fetchStats]);
+  useAutoRefresh(fetchStats);
 
   const formatCurrency = (value) => {
     return new Intl.NumberFormat("id-ID", {

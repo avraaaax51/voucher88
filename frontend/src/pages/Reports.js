@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { useAutoRefresh } from "../hooks/useAutoRefresh";
 import AdminLayout from "../components/AdminLayout";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
@@ -80,6 +81,7 @@ const Reports = () => {
   useEffect(() => {
     Promise.all([fetchStats(), fetchDailyReport()]);
   }, [fetchStats, fetchDailyReport]);
+  useAutoRefresh(fetchStats);
 
   const handleDateFilter = () => {
     setLoading(true);

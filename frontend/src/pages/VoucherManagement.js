@@ -4,6 +4,7 @@ import axios from "axios";
 import AdminLayout from "../components/AdminLayout";
 import { PrintVoucher } from "../components/PrintVoucher";
 import { useStoreSettings, isExpiringSoon } from "../hooks/useStoreSettings";
+import { useAutoRefresh } from "../hooks/useAutoRefresh";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Badge } from "../components/ui/badge";
@@ -69,6 +70,7 @@ const VoucherManagement = () => {
   useEffect(() => {
     fetchVouchers();
   }, [fetchVouchers]);
+  useAutoRefresh(fetchVouchers);
 
   const formatCurrency = (value) => {
     return new Intl.NumberFormat("id-ID", {

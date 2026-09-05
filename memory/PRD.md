@@ -152,3 +152,8 @@ Semua fitur inti sudah diimplementasi dan diuji.
 
 ## Update 2026-09-05 — Laporan Per Kasir
 - /api/reports/daily kini juga mengembalikan by_cashier (agregasi redemption_logs per redeemed_by). Tabel "Laporan Per Kasir" di Laporan (mengikuti filter tanggal) + ikut diekspor ke CSV. Self-tested (curl + screenshot).
+
+## Update 2026-09-05 — Fix data beda antar perangkat (iteration_9)
+- Middleware Cache-Control no-store untuk /api; hook useAutoRefresh (focus/visibility + 30s) di Dashboard, Kelola Voucher, Laporan, Kasir.
+- Hapus voucher (single/bulk) juga menghapus redemption_logs terkait; orphan logs dibersihkan.
+- Catatan: URL preview vs domain publish = database berbeda (bukan bug).

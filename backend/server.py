@@ -252,6 +252,14 @@ app = FastAPI(lifespan=lifespan)
 # Create router with /api prefix
 api_router = APIRouter(prefix="/api")
 
+@app.middleware("http")
+async def no_cache_api(request: Request, call_next):
+    response = await call_next(request)
+    if request.url.path.startswith("/api"):
+        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate"
+        response.headers["Pragma"] = "no-cache"
+    return response
+
 # CORS
 app.add_middleware(
     CORSMiddleware,
@@ -455,12 +463,14 @@ async def delete_voucher(voucher_id: str, admin: dict = Depends(require_role(["a
     result = await db.vouchers.delete_one({"_id": ObjectId(voucher_id)})
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Voucher tidak ditemukan")
+    await db.redemption_logs.delete_many({"voucher_id": voucher_id})
     return {"message": "Voucher berhasil dihapus"}
 
 @api_router.post("/vouchers/bulk-delete")
 async def bulk_delete_vouchers(data: BulkIds, admin: dict = Depends(require_role(["admin"]))):
     oids = [ObjectId(i) for i in data.ids if ObjectId.is_valid(i)]
     result = await db.vouchers.delete_many({"_id": {"$in": oids}})
+    await db.redemption_logs.delete_many({"voucher_id": {"$in": [str(o) for o in oids]}})
     return {"message": f"{result.deleted_count} voucher dihapus", "deleted": result.deleted_count}
 
 @api_router.get("/redemptions/mine")
