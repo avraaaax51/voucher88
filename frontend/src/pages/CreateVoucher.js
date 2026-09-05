@@ -281,55 +281,138 @@ const CreateVoucher = () => {
               ))}
             </div>
 
-            {/* Print Layout - 80mm Thermal */}
+            {/* Print Layout - 80mm Thermal - Toko Aneka 88 Style */}
             <div className="print-area hidden print:block" data-testid="print-area">
               {createdVouchers.map((voucher, idx) => (
                 <div
                   key={voucher.code}
                   style={{ 
                     width: '80mm', 
-                    padding: '4mm', 
+                    padding: '3mm 4mm', 
                     backgroundColor: 'white', 
                     color: 'black',
-                    fontFamily: 'sans-serif',
+                    fontFamily: 'Arial, sans-serif',
                     pageBreakAfter: 'always'
                   }}
                 >
-                  <div style={{ textAlign: 'center', borderBottom: '2px solid black', paddingBottom: '3mm', marginBottom: '3mm' }}>
-                    <h2 style={{ fontSize: '16px', fontWeight: 'bold', margin: 0 }}>VoucherKu</h2>
-                  </div>
+                  {/* Dashed top border */}
+                  <div style={{ borderTop: '2px dashed #000', marginBottom: '4mm' }}></div>
                   
+                  {/* Store Header */}
+                  <div style={{ textAlign: 'center', marginBottom: '3mm' }}>
+                    <p style={{ fontSize: '14px', fontWeight: 'bold', margin: 0, letterSpacing: '1px' }}>Toko</p>
+                    <p style={{ fontSize: '28px', fontWeight: '900', margin: '0', letterSpacing: '2px', lineHeight: '1.1' }}>
+                      ANEKA<span style={{ color: '#000' }}>88</span>
+                    </p>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '2mm' }}>
+                      <span style={{ flex: 1, height: '1px', backgroundColor: '#000' }}></span>
+                      <span style={{ fontSize: '11px', fontWeight: 'bold', letterSpacing: '2px' }}>MANGON</span>
+                      <span style={{ flex: 1, height: '1px', backgroundColor: '#000' }}></span>
+                    </div>
+                  </div>
+
+                  {/* Voucher Belanja Banner with arrows */}
+                  <div style={{ 
+                    display: 'flex',
+                    alignItems: 'stretch',
+                    marginBottom: '4mm',
+                    height: '8mm'
+                  }}>
+                    {/* Left arrow */}
+                    <div style={{
+                      width: 0,
+                      height: 0,
+                      borderTop: '4mm solid transparent',
+                      borderBottom: '4mm solid transparent',
+                      borderRight: '4mm solid #000'
+                    }}></div>
+                    {/* Center text */}
+                    <div style={{ 
+                      backgroundColor: '#000', 
+                      color: '#fff', 
+                      flex: 1,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center'
+                    }}>
+                      <p style={{ margin: 0, fontSize: '14px', fontWeight: 'bold', letterSpacing: '3px' }}>VOUCHER BELANJA</p>
+                    </div>
+                    {/* Right arrow */}
+                    <div style={{
+                      width: 0,
+                      height: 0,
+                      borderTop: '4mm solid transparent',
+                      borderBottom: '4mm solid transparent',
+                      borderLeft: '4mm solid #000'
+                    }}></div>
+                  </div>
+
+                  {/* Nilai Voucher */}
+                  <div style={{ textAlign: 'center', marginBottom: '4mm', borderBottom: '1px solid #000', paddingBottom: '3mm' }}>
+                    <p style={{ fontSize: '11px', fontWeight: 'bold', margin: '0 0 1mm 0', letterSpacing: '1px' }}>NILAI VOUCHER</p>
+                    <p style={{ fontSize: '32px', fontWeight: '900', margin: 0 }}>
+                      Rp.{voucher.nominal.toLocaleString('id-ID')}
+                    </p>
+                  </div>
+
+                  {/* QR Code */}
                   {voucher.qr_code && (
-                    <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '2mm' }}>
+                    <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '4mm' }}>
                       <img
                         src={`data:image/png;base64,${voucher.qr_code}`}
                         alt={`QR ${voucher.code}`}
-                        style={{ width: '30mm', height: '30mm' }}
+                        style={{ width: '35mm', height: '35mm' }}
                       />
                     </div>
                   )}
-                  
-                  <div style={{ textAlign: 'center', marginBottom: '2mm' }}>
-                    <p style={{ fontFamily: 'monospace', fontSize: '16px', fontWeight: 'bold', letterSpacing: '2px', margin: 0 }}>
-                      {voucher.code}
+
+                  {/* Promo Message / Terms */}
+                  <div style={{ 
+                    backgroundColor: '#000', 
+                    color: '#fff', 
+                    padding: '3mm 4mm', 
+                    textAlign: 'center',
+                    borderRadius: '20px',
+                    marginBottom: '4mm'
+                  }}>
+                    <p style={{ margin: 0, fontSize: '11px', fontWeight: 'bold', lineHeight: '1.4' }}>
+                      {voucher.terms || 'BELANJA LEBIH HEMAT\nDI TOKO ANEKA 88 MANGON'}
                     </p>
                   </div>
-                  
-                  <div style={{ borderTop: '1px solid black', borderBottom: '1px solid black', padding: '2mm 0', marginBottom: '2mm', textAlign: 'center' }}>
-                    <p style={{ fontSize: '12px', fontWeight: '500', margin: 0 }}>{voucher.title}</p>
-                    <p style={{ fontSize: '18px', fontWeight: 'bold', margin: '2mm 0 0 0' }}>
-                      {formatCurrency(voucher.nominal)}
-                    </p>
-                  </div>
-                  
-                  {voucher.terms && (
-                    <p style={{ fontSize: '9px', textAlign: 'center', margin: '0 0 2mm 0' }}>{voucher.terms}</p>
-                  )}
-                  
-                  <div style={{ textAlign: 'center', fontSize: '10px', borderTop: '1px dashed black', paddingTop: '2mm' }}>
-                    <p style={{ margin: 0 }}>
-                      Berlaku s/d: {new Date(voucher.expires_at).toLocaleDateString("id-ID")}
-                    </p>
+
+                  {/* Expiry Date */}
+                  <div style={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    border: '2px solid #000',
+                    borderRadius: '4px',
+                    overflow: 'hidden'
+                  }}>
+                    <div style={{ 
+                      padding: '2mm 3mm', 
+                      borderRight: '2px solid #000',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center'
+                    }}>
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                        <line x1="16" y1="2" x2="16" y2="6"></line>
+                        <line x1="8" y1="2" x2="8" y2="6"></line>
+                        <line x1="3" y1="10" x2="21" y2="10"></line>
+                        <rect x="8" y="14" width="2" height="2"></rect>
+                        <rect x="11" y="14" width="2" height="2"></rect>
+                        <rect x="14" y="14" width="2" height="2"></rect>
+                        <rect x="8" y="17" width="2" height="2"></rect>
+                        <rect x="11" y="17" width="2" height="2"></rect>
+                      </svg>
+                    </div>
+                    <div style={{ padding: '2mm 3mm', flex: 1 }}>
+                      <p style={{ margin: 0, fontSize: '9px', fontWeight: 'bold' }}>BERLAKU SAMPAI</p>
+                      <p style={{ margin: 0, fontSize: '12px', fontWeight: '900' }}>
+                        {new Date(voucher.expires_at).toLocaleDateString("id-ID", { day: 'numeric', month: 'long', year: 'numeric' }).toUpperCase()}
+                      </p>
+                    </div>
                   </div>
                 </div>
               ))}

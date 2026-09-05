@@ -46,6 +46,9 @@ VoucherKu adalah sistem manajemen voucher berbahasa Indonesia untuk toko tunggal
 
 ### 6. Cetak Voucher
 - [x] Print preview untuk thermal printer 80mm
+- [x] Template print style "Toko Aneka 88 Mangon" sesuai gambar referensi user
+- [x] Arrow shapes pada banner VOUCHER BELANJA
+- [x] Dynamic data: nominal, QR, syarat ketentuan, tanggal berlaku
 - [ ] Validasi fisik Epson TM-T82II (user device)
 
 ## Format Kode Voucher
@@ -81,12 +84,20 @@ Contoh: ABC1D2E001, XY5Z8PQ002, 3XBI88W003
 ### 2026-09-05
 - Changed voucher code format from `6 alphanumeric + hyphen + 4 digits` to `7 alphanumeric + 3 digits` (no hyphen)
 - Fixed timezone comparison bug in redemption and check voucher endpoints
+- Updated print template to match "Toko Aneka 88 Mangon" design reference
+- Added arrow shapes (triangles) to VOUCHER BELANJA banner
+- Template now displays dynamic data: nominal, QR code, terms, expiry date with calendar icon
 
 ## Status: MVP Complete
 Semua fitur inti sudah diimplementasi dan diuji.
 
+## Backlog (P1 - User Approved)
+- [ ] Bulk voucher dengan prefix kustom
+- [ ] Export laporan CSV/PDF
+- [ ] Peringatan voucher kedaluwarsa/segera expired
+
 ## Backlog (P2)
-- [ ] Audit CSS untuk printer Epson TM-T82II 80mm
+- [ ] Audit CSS untuk printer Epson TM-T82II 80mm (validasi fisik user)
 - [ ] Penambahan data-testid ke semua elemen interaktif
-- [ ] E2E testing dengan testing agent
 - [ ] Validasi kamera scanner di browser
+- [ ] Refactor: Extract PrintVoucher component (menghilangkan duplikasi template)
