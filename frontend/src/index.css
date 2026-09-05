@@ -1,23 +1,70 @@
-@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=IBM+Plex+Sans:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Comic+Neue:ital,wght@0,300;0,400;0,700;1,300&family=Patrick+Hand&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root {
-    --font-heading: 'Manrope', sans-serif;
-    --font-body: 'IBM Plex Sans', sans-serif;
+    --font-heading: 'Patrick Hand', 'Comic Neue', cursive;
+    --font-body: 'Comic Neue', 'Comic Sans MS', cursive;
+    --ink: #17171a;
 }
 
 body {
     margin: 0;
     font-family: var(--font-body);
+    font-weight: 300;
+    letter-spacing: 0.01em;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
 }
 
 h1, h2, h3, h4, h5, h6 {
     font-family: var(--font-heading);
+    font-weight: 400;
+    letter-spacing: 0.02em;
+}
+
+strong, b, .font-semibold, .font-bold, .font-extrabold, .font-black {
+    font-weight: 700;
+}
+
+/* Comic-lite: thin ink borders + soft offset shadows */
+.rounded-xl.border.bg-card {
+    border: 1.5px solid var(--ink);
+    border-radius: 1rem;
+    box-shadow: 3px 3px 0 0 var(--ink);
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.rounded-xl.border.bg-card:hover {
+    transform: translate(-1px, -1px);
+    box-shadow: 4px 4px 0 0 var(--ink);
+}
+button.inline-flex.bg-primary {
+    border: 1.5px solid var(--ink);
+    box-shadow: 2px 2px 0 0 var(--ink);
+    transition: transform 0.1s ease, box-shadow 0.1s ease, background-color 0.15s ease;
+}
+button.inline-flex.bg-primary:active {
+    transform: translate(2px, 2px);
+    box-shadow: 0 0 0 0 var(--ink);
+}
+input.flex.rounded-md, button[role="combobox"], textarea.flex {
+    border: 1.5px solid var(--ink);
+    border-radius: 0.75rem;
+    background: #fff;
+}
+.inline-flex.rounded-md.border.px-2\.5 {
+    border: 1.5px solid var(--ink);
+    border-radius: 999px;
+    font-weight: 700;
+    box-shadow: 1.5px 1.5px 0 0 var(--ink);
+}
+table thead th {
+    font-family: var(--font-heading);
+    font-size: 0.95rem;
+    letter-spacing: 0.04em;
+    color: var(--ink);
 }
 
 code {
@@ -26,7 +73,7 @@ code {
 
 @layer base {
     :root {
-        --background: 210 20% 98%;
+        --background: 46 60% 97%;
         --foreground: 220 14% 10%;
         --card: 0 0% 100%;
         --card-foreground: 220 14% 10%;
@@ -42,15 +89,15 @@ code {
         --accent-foreground: 0 0% 100%;
         --destructive: 0 84% 60%;
         --destructive-foreground: 0 0% 98%;
-        --border: 220 13% 91%;
-        --input: 220 13% 91%;
-        --ring: 220 14% 4%;
+        --border: 220 10% 22%;
+        --input: 220 10% 22%;
+        --ring: 46 95% 55%;
         --chart-1: 160 84% 39%;
         --chart-2: 220 70% 50%;
         --chart-3: 30 80% 55%;
         --chart-4: 280 65% 60%;
         --chart-5: 340 75% 55%;
-        --radius: 0.5rem;
+        --radius: 0.85rem;
         --success: 160 84% 39%;
         --warning: 38 92% 50%;
     }

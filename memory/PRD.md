@@ -123,3 +123,7 @@ Semua fitur inti sudah diimplementasi dan diuji.
 ## Backlog
 - P1 Export laporan CSV/PDF (tombol Export CSV sudah ada di Laporan — cek fungsinya)
 - P2 Refactor komponen besar (CashierMode, Reports, UserManagement), uji atomicity redemption
+
+## Update 2026-09-05 — Tema comic-lite
+- Kartu "Segera Kadaluarsa" dihapus dari Dashboard (badge di Kelola Voucher tetap).
+- Tema global via index.css: font Comic Neue 300 (body) + Patrick Hand (heading), background krem, border tinta 1.5px + offset shadow tipis pada Card/Button/Input/Badge. Template print tidak terpengaruh (inline Arial).

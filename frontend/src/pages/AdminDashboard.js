@@ -159,7 +159,7 @@ const AdminDashboard = () => {
         </div>
 
         {/* Secondary Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <Card className="border" data-testid="stat-nominal">
             <CardContent className="p-6">
               <div className="flex items-center gap-4">
@@ -171,23 +171,6 @@ const AdminDashboard = () => {
                   <p className="text-2xl font-bold mt-1">
                     {formatCurrency(stats?.total_nominal_redeemed || 0)}
                   </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border" data-testid="stat-expiring-soon">
-            <CardContent className="p-6">
-              <div className="flex items-center gap-4">
-                <div className="w-14 h-14 bg-amber-100 rounded-xl flex items-center justify-center">
-                  <AlertCircle className="w-7 h-7 text-amber-600" />
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Segera Kadaluarsa (≤ {stats?.expiry_warning_days || 7} hari)</p>
-                  <p className="text-2xl font-bold mt-1 text-amber-700">{stats?.expiring_soon || 0} voucher</p>
-                  {stats?.expiring_soon > 0 && (
-                    <Link to="/admin/vouchers" className="text-xs text-amber-700 underline">Lihat voucher</Link>
-                  )}
                 </div>
               </div>
             </CardContent>
