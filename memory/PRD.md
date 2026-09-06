@@ -185,3 +185,6 @@ Semua fitur inti sudah diimplementasi dan diuji.
 - Role superadmin: akun pertama "Admin" (sandi awal 123321, ADMIN_PASSWORD). require_role: superadmin lolos semua. Hanya superadmin buat/hapus admin & reset sandi admin; superadmin tak bisa dihapus. GET /api/auth/names publik → chip nama di login (preselect nama terakhir).
 - Lupa sandi: POST /auth/forgot-password {name} → kode 6 digit (bcrypt, 10 mnt) dikirim via Emergent managed email ke OWNER_EMAIL=avraaaax51@gmail.com (EMERGENT_EMAIL_KEY, EMAIL_FROM_NAME=Voucher88); POST /auth/reset-with-code. Rate limit 3/15m & 5/15m. Endpoint recovery-code lama dihapus.
 - Kredensial preview: Admin / 123321.
+
+## Update 2026-09-06 — Badge status voucher (iteration_18)
+- Voucher belum dicetak/draft → status "Belum Aktif" (abu-abu). Badge cetak: Sudah dicetak hijau solid, Belum dicetak oranye putus-putus.

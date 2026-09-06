@@ -1,0 +1,33 @@
+{
+  "summary": "Iteration 18: Frontend-only verification of the Voucher status/print badge fix in Kelola Voucher (VoucherManagement.getStatusBadge + card print badge). Logged in as Admin/123321, created a fresh voucher via /api/vouchers, verified unprinted state shows 'Belum Aktif' (badge-draft-<code>, gray bg rgb(229,231,235)) and 'Belum dicetak' (badge-unprinted-<code>, orange bg rgb(255,237,213), text rgb(154,52,18)). Simulated a successful print via /api/vouchers/mark-printed, then confirmed the status slot flipped to 'Aktif' and the print slot became 'Sudah dicetak' (badge-printed-<code>) with solid emerald bg rgb(5,150,105) and white text rgb(255,255,255). Printed/Unprinted background colors are clearly distinct. Detail dialog shows 'Dicetak: Ya · <date>'. Filter 'Belum Dicetak' returns only draft/'Belum Aktif' cards (13 cards, 0 non-draft leakage). Global list also shows Terpakai and Segera Exp badges for other vouchers. Created voucher cleaned up (DELETE /api/vouchers/<id> => 200).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {"flow": "handlePrint (browser mode fallback when agent unreachable)", "issue": "When settings.print_method === 'agent' (current default) and the local ESC/POS agent is unreachable (ERR_CONNECTION_REFUSED), directPrint's catch swallows the error with a toast and does NOT call markPrinted, so the badge never advances to 'Sudah dicetak'/'Aktif' even though the user thinks they printed. Test had to call /api/vouchers/mark-printed directly to verify the printed-state badges. Not a regression from this iteration's fix, but worth surfacing.", "affected_selectors": ["[data-testid=\"btn-print-<code>\"]"]}
+    ],
+    "design_issues": [
+      {"screen": "Kelola Voucher card - Belum dicetak badge", "issues": ["Class 'border-orange-400 border-dashed' is applied but computed borderStyle=solid (default border-width is 0 without an explicit 'border' utility in Tailwind v3+). The dashed border isn't actually rendered. Colors alone still differentiate clearly, so priority is low."]}
+    ]
+  },
+  "test_report_links": ["/app/test_reports/iteration_18.json"],
+  "action_items": [
+    "Optional: in VoucherManagement.js line ~405, add explicit border width utility (e.g. 'border' or 'border-2') alongside 'border-dashed' so the dashed border on the unprinted badge actually renders.",
+    "Optional integration hardening: in handlePrint/directPrint (VoucherManagement.js ~lines 158-176), when print_method==='agent' and the agent call fails, offer a fallback to browser print or at least still call markPrinted only after user confirms the paper actually came out (currently silent no-op on failure)."
+  ],
+  "critical_code_review_comments": [
+    "getStatusBadge order is now correct: redeemed -> (draft || !printed) 'Belum Aktif' -> expired -> expiring -> Aktif. Matches spec.",
+    "Printed badge uses bg-emerald-600 text-white (solid) vs unprinted bg-orange-100 text-orange-800 - visually distinct as required.",
+    "data-testid conventions consistent: badge-draft-<code>, badge-printed-<code>, badge-unprinted-<code>, status-slot-<code>, print-slot-<code>, detail-printed.",
+    "Minor: 'border-dashed' without an explicit border width class is a no-op in Tailwind v3.",
+    "server.py continues to grow >1000 lines; recommend modular split (already noted iteration 17)."
+  ],
+  "updated_files": ["/app/test_reports/iteration_18.json"],
+  "success_rate": {"backend": "N/A (frontend-only)", "frontend": "100% (all badge/status/filter/detail assertions passed)"},
+  "test_credentials": "Admin / 123321 (unchanged).",
+  "seed_data_creation": "Created 3 TEST_BadgeCheck* vouchers during test iterations; all cleaned up via DELETE /api/vouchers/<id> (status 200).",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Voucher badge fix in VoucherManagement.js verified end-to-end (unprinted/draft -> printed transition, colors, filter, detail dialog). Note: handlePrint with print_method='agent' fails silently when local ESC/POS agent is unreachable, so E2E tests of the badge transition via the UI Print button require either switching print_method to 'browser' in Pengaturan or calling /api/vouchers/mark-printed directly. Cleanup pattern: DELETE /api/vouchers/{_id} with credentials.",
+  "rca of the issue": "Original bug: getStatusBadge returned 'Aktif' for any voucher whose status was 'active' regardless of whether it had been physically printed. When Buat Voucher creates a voucher, status='draft' and printed=false. The current fix adds an early branch `if (voucher.status === 'draft' || !voucher.printed) -> gray 'Belum Aktif' badge` after the 'redeemed' check, so unprinted vouchers correctly show 'Belum Aktif' until mark-printed flips both printed=true AND status=='draft' -> 'active'. Verified live with a fresh voucher: initial state shows gray 'Belum Aktif' + orange 'Belum dicetak'; after /api/vouchers/mark-printed the same card shows 'Aktif' + emerald-solid 'Sudah dicetak'."
+}

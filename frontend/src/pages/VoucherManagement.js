@@ -95,6 +95,9 @@ const VoucherManagement = () => {
     if (voucher.status === "redeemed") {
       return <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-100">Terpakai</Badge>;
     }
+    if (voucher.status === "draft" || !voucher.printed) {
+      return <Badge className="bg-gray-200 text-gray-700 hover:bg-gray-200" data-testid={`badge-draft-${voucher.code}`}>Belum Aktif</Badge>;
+    }
     if (voucher.status === "expired" || expiresAt < now) {
       return <Badge className="bg-red-100 text-red-700 hover:bg-red-100">Kadaluarsa</Badge>;
     }
@@ -397,9 +400,9 @@ const VoucherManagement = () => {
                         </span>
                         <span data-testid={`print-slot-${voucher.code}`}>
                           {voucher.printed ? (
-                            <Badge variant="outline" className="gap-1" data-testid={`badge-printed-${voucher.code}`}><Printer className="w-3 h-3" /> Sudah dicetak</Badge>
+                            <Badge className="gap-1 bg-emerald-600 text-white hover:bg-emerald-600 border-emerald-700" data-testid={`badge-printed-${voucher.code}`}><Printer className="w-3 h-3" /> Sudah dicetak</Badge>
                           ) : (
-                            <Badge variant="outline" className="gap-1 border-dashed text-gray-600" data-testid={`badge-unprinted-${voucher.code}`}><Printer className="w-3 h-3" /> Belum dicetak</Badge>
+                            <Badge className="gap-1 bg-orange-100 text-orange-800 hover:bg-orange-100 border-orange-400 border-dashed" data-testid={`badge-unprinted-${voucher.code}`}><Printer className="w-3 h-3" /> Belum dicetak</Badge>
                           )}
                         </span>
                     </div>
