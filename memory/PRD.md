@@ -167,3 +167,8 @@ Semua fitur inti sudah diimplementasi dan diuji.
 
 ## Update 2026-09-05 — Auto cut fix (iteration_12)
 - Setting print_page_height_mm (default 150, 0=auto). @page size tetap WxH → tiap voucher 1 halaman berukuran pasti → driver cut per halaman. PDF 4 voucher = 4 halaman 80x150mm terverifikasi. Preview garis potong di Pengaturan.
+
+## Update 2026-09-05 — Cetak langsung ESC/POS + auto cut (iteration_13 PASS)
+- lib/escpos.js: render voucher ke canvas 576px, raster GS v 0, cut 1D 56 42 00 per voucher, kirim base64 ke agen lokal (default http://localhost:9100). Agen: backend/static/voucher_print_agent.py (+ .bat), download via /api/print-agent/download/{file}.
+- Settings print_method (browser|agent), print_agent_url, print_printer_name; UI kartu "Cetak Langsung + Auto Cut" (tes koneksi, unduh agen, pratinjau bitmap). Semua tombol cetak memakai agen bila print_method=agent.
+- Catatan Chrome: fetch https→localhost butuh izin Local Network Access (prompt "Izinkan"); fetch memakai targetAddressSpace loopback.

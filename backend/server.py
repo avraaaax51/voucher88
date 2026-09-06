@@ -270,13 +270,15 @@ async def no_cache_api(request: Request, call_next):
         response.headers["Pragma"] = "no-cache"
     return response
 
-# CORS
+# CORS (credentials + cookies: "*" must be expressed as a regex so the origin is echoed back)
+_cors = os.environ.get("CORS_ORIGINS", "*").strip()
+_cors_kwargs = {"allow_origin_regex": ".*"} if _cors == "*" else {"allow_origins": [o.strip() for o in _cors.split(",") if o.strip()]}
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[os.environ.get("FRONTEND_URL", "http://localhost:3000")],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    **_cors_kwargs,
 )
 
 # Configure logging
