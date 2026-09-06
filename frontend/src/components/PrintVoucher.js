@@ -116,11 +116,16 @@ export const PrintVoucher = ({ voucher, settings = {}, pageBreak = false }) => {
             <img
               src={`data:image/png;base64,${voucher.qr_code}`}
               alt={`QR ${voucher.code}`}
-              style={{ width: "40mm", height: "40mm", display: "block" }}
+              style={{
+                width: "46mm",
+                height: "46mm",
+                display: "block",
+                imageRendering: "pixelated",
+              }}
             />
           </div>
         ) : (
-          <div style={{ width: "40mm", height: "40mm", margin: "5mm auto", border: "0.4mm dashed #000", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "10px" }}>QR CODE</div>
+          <div style={{ width: "46mm", height: "46mm", margin: "5mm auto", border: "0.4mm dashed #000", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "10px" }}>QR CODE</div>
         )}
 
         <div

@@ -45,6 +45,7 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
 // Redirect based on role
 const RoleRedirect = () => {
   const { user, loading } = useAuth();
+  const location = useLocation();
 
   if (loading) {
     return (
@@ -55,7 +56,13 @@ const RoleRedirect = () => {
   }
 
   if (!user) {
-    return <Navigate to="/login" replace />;
+    const nextPath = `${location.pathname}${location.search}`;
+    return <Navigate to={`/login?next=${encodeURIComponent(nextPath)}`} replace />;
+  }
+
+  const quickScanCode = new URLSearchParams(location.search).get("s");
+  if (quickScanCode) {
+    return <Navigate to={`/kasir?scan=${encodeURIComponent(quickScanCode)}`} replace />;
   }
 
   return <Navigate to={user.role === "kasir" ? "/kasir" : "/admin"} replace />;

@@ -202,3 +202,13 @@ Semua fitur inti sudah diimplementasi dan diuji.
   scan khusus dan fallback Ketik Kode ketika perangkat tidak memiliki kamera belakang.
 - Verifikasi: testing agent iteration_19 lulus (backend 6/6 dan frontend desktop/mobile).
   Validasi kamera belakang fisik tetap perlu dilakukan pada ponsel pengguna.
+
+## Update 2026-09-06 — QR Dual Scan (iteration_20 PASS)
+- QR kini memakai payload ringkas `/?s=<kode>` dengan koreksi kesalahan tingkat menengah,
+  modul lebih rapat, dan quiet zone yang cukup. Ini membuat QR tetap membuka aplikasi dari
+  kamera bawaan ponsel sekaligus lebih mudah dibaca oleh pemindai kamera web.
+- Pemindai web dibatasi untuk QR, memakai Barcode Detector bawaan browser bila tersedia, dan
+  tetap memahami QR ringkas baru, tautan QR versi sebelumnya, serta QR lama berisi kode saja.
+- QR pada voucher lama diperbarui otomatis saat daftar atau detail voucher dibuka; cetak ulang
+  voucher menggunakan QR 46mm yang tajam agar hasil fisik ikut memakai versi mudah dipindai.
+- Verifikasi: testing agent iteration_20 lulus (backend 7/7 dan smoke test ponsel).

@@ -287,7 +287,12 @@ def generate_voucher_code(sequence: int, prefix: str = "") -> str:
 
 # Generate QR Code as base64
 def generate_qr_base64(data: str) -> str:
-    qr = qrcode.QRCode(version=1, box_size=10, border=2)
+    qr = qrcode.QRCode(
+        version=None,
+        error_correction=qrcode.constants.ERROR_CORRECT_M,
+        box_size=12,
+        border=4,
+    )
     qr.add_data(data)
     qr.make(fit=True)
     img = qr.make_image(fill_color="black", back_color="white")
@@ -303,7 +308,21 @@ def build_voucher_scan_url(request: Request, code: str) -> str:
     scheme = forwarded_scheme if forwarded_scheme in {"http", "https"} else request.url.scheme
     host = forwarded_host or request.headers.get("host", "")
     base_url = f"{scheme}://{host}" if host else str(request.base_url).rstrip("/")
-    return f"{base_url}/kasir?scan={quote(code, safe='')}"
+    return f"{base_url}/?s={quote(code, safe='')}"
+
+
+async def refresh_voucher_qr(voucher: dict, request: Request) -> None:
+    scan_url = build_voucher_scan_url(request, voucher["code"])
+    if voucher.get("scan_url") == scan_url:
+        return
+
+    qr_code = generate_qr_base64(scan_url)
+    await db.vouchers.update_one(
+        {"_id": voucher["_id"]},
+        {"$set": {"scan_url": scan_url, "qr_code": qr_code}},
+    )
+    voucher["scan_url"] = scan_url
+    voucher["qr_code"] = qr_code
 
 
 async def record_login_activity(user: dict) -> None:
@@ -775,6 +794,7 @@ async def mark_printed(data: MarkPrinted, admin: dict = Depends(require_role(["a
 
 @api_router.get("/vouchers")
 async def get_vouchers(
+    request: Request,
     status: Optional[str] = None,
     page: int = 1,
     limit: int = 50,
@@ -795,6 +815,7 @@ async def get_vouchers(
     total = await db.vouchers.count_documents(query)
     
     for v in vouchers:
+        await refresh_voucher_qr(v, request)
         v["_id"] = str(v["_id"])
         if v.get("created_at"):
             v["created_at"] = v["created_at"].isoformat() if isinstance(v["created_at"], datetime) else v["created_at"]
@@ -809,12 +830,17 @@ async def get_vouchers(
     return {"vouchers": vouchers, "total": total, "page": page, "limit": limit}
 
 @api_router.get("/vouchers/{voucher_id}")
-async def get_voucher(voucher_id: str, user: dict = Depends(get_current_user)):
+async def get_voucher(
+    voucher_id: str,
+    request: Request,
+    user: dict = Depends(get_current_user),
+):
     """Get single voucher by ID"""
     voucher = await db.vouchers.find_one({"_id": ObjectId(voucher_id)})
     if not voucher:
         raise HTTPException(status_code=404, detail="Voucher tidak ditemukan")
     
+    await refresh_voucher_qr(voucher, request)
     voucher["_id"] = str(voucher["_id"])
     if voucher.get("created_at"):
         voucher["created_at"] = voucher["created_at"].isoformat() if isinstance(voucher["created_at"], datetime) else voucher["created_at"]

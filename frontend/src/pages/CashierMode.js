@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { Html5Qrcode } from "html5-qrcode";
+import { Html5Qrcode, Html5QrcodeSupportedFormats } from "html5-qrcode";
 import axios from "axios";
 import { useAuth } from "../context/AuthContext";
 import { Button } from "../components/ui/button";
@@ -33,7 +33,7 @@ const getVoucherCode = (value) => {
 
   try {
     const url = new URL(rawValue);
-    const quickScanCode = url.searchParams.get("scan");
+    const quickScanCode = url.searchParams.get("scan") || url.searchParams.get("s");
     if (quickScanCode) return quickScanCode.trim().toUpperCase();
   } catch {
     // Existing vouchers store only the code, so they remain valid for scanning.
@@ -96,7 +96,12 @@ const CashierMode = () => {
     setScannerError("");
     const sessionId = scannerSessionRef.current + 1;
     scannerSessionRef.current = sessionId;
-    const scanner = new Html5Qrcode("qr-reader", { verbose: false });
+    const scanner = new Html5Qrcode("qr-reader", {
+      formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE],
+      experimentalFeatures: {
+        useBarCodeDetectorIfSupported: true,
+      },
+    });
     scannerRef.current = scanner;
 
     try {
@@ -104,13 +109,13 @@ const CashierMode = () => {
         { facingMode: { exact: "environment" } },
         {
           fps: 10,
-          qrbox: { width: 250, height: 250 },
+          qrbox: { width: 280, height: 280 },
           aspectRatio: 1,
           disableFlip: true,
         },
         (decodedText) => {
           const code = getVoucherCode(decodedText);
-        const now = Date.now();
+          const now = Date.now();
           if (!code || busyRef.current) return;
           if (lastScanRef.current.code === code && now - lastScanRef.current.at < 4000) return;
           lastScanRef.current = { code, at: now };
@@ -194,7 +199,9 @@ const CashierMode = () => {
 
   handleScanRef.current = handleScan;
 
-  const quickScanCode = getVoucherCode(searchParams.get("scan"));
+  const quickScanCode = getVoucherCode(
+    searchParams.get("scan") || searchParams.get("s")
+  );
 
   useEffect(() => {
     if (!quickScanCode || quickScanRef.current === quickScanCode) return;
@@ -203,6 +210,7 @@ const CashierMode = () => {
     handleScan(quickScanCode);
     const nextParams = new URLSearchParams(searchParams);
     nextParams.delete("scan");
+    nextParams.delete("s");
     setSearchParams(nextParams, { replace: true });
   }, [handleScan, quickScanCode, searchParams, setSearchParams]);
 
