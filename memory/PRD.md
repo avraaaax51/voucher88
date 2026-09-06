@@ -180,3 +180,8 @@ Semua fitur inti sudah diimplementasi dan diuji.
 ## Update 2026-09-06 — Agen PowerShell + Kode Pemulihan (iteration_15)
 - backend/static/Voucher88PrintAgent.ps1/.bat: agen ESC/POS tanpa Python (TcpListener + winspool RAW), unduh dari Pengaturan.
 - Kode pemulihan admin: POST /auth/recovery-code (sekali tampil, hash disimpan di user), GET status, POST /auth/recover publik (single-use, brute-force 5x/15m). UI: kartu di Pengaturan + "Lupa sandi admin?" di login.
+
+## Update 2026-09-06 — Super Admin + Lupa sandi via email (iteration_17 PASS)
+- Role superadmin: akun pertama "Admin" (sandi awal 123321, ADMIN_PASSWORD). require_role: superadmin lolos semua. Hanya superadmin buat/hapus admin & reset sandi admin; superadmin tak bisa dihapus. GET /api/auth/names publik → chip nama di login (preselect nama terakhir).
+- Lupa sandi: POST /auth/forgot-password {name} → kode 6 digit (bcrypt, 10 mnt) dikirim via Emergent managed email ke OWNER_EMAIL=avraaaax51@gmail.com (EMERGENT_EMAIL_KEY, EMAIL_FROM_NAME=Voucher88); POST /auth/reset-with-code. Rate limit 3/15m & 5/15m. Endpoint recovery-code lama dihapus.
+- Kredensial preview: Admin / 123321.

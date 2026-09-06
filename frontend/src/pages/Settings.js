@@ -5,7 +5,7 @@ import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
 import { toast } from "sonner";
-import { Loader2, Save, Store, Bell, Trash2, AlertTriangle, Printer, Download, Plug, Scissors, KeyRound, Copy } from "lucide-react";
+import { Loader2, Save, Store, Bell, Trash2, AlertTriangle, Printer, Download, Plug, Scissors } from "lucide-react";
 import { DEFAULT_SETTINGS } from "../hooks/useStoreSettings";
 import { PrintVoucher, PrintPortal } from "../components/PrintVoucher";
 import { printVouchersDirect, agentStatus, renderVoucherCanvas } from "../lib/escpos";
@@ -31,31 +31,6 @@ const Settings = () => {
   const [agentState, setAgentState] = useState(null);
   const [testing, setTesting] = useState(false);
   const [rasterPreview, setRasterPreview] = useState("");
-  const [recovery, setRecovery] = useState({ has_code: false, created_at: null, code: "" });
-  const [genLoading, setGenLoading] = useState(false);
-
-  useEffect(() => {
-    fetch(`${API_URL}/api/auth/recovery-code/status`, { credentials: "include" })
-      .then((r) => r.json())
-      .then((d) => setRecovery((p) => ({ ...p, ...d })))
-      .catch(() => {});
-  }, []);
-
-  const handleGenerateCode = async () => {
-    if (recovery.has_code && !window.confirm("Kode lama akan hangus dan diganti kode baru. Lanjutkan?")) return;
-    setGenLoading(true);
-    try {
-      const res = await fetch(`${API_URL}/api/auth/recovery-code`, { method: "POST", credentials: "include" });
-      const body = await res.json();
-      if (!res.ok) throw new Error(body.detail || "Gagal membuat kode");
-      setRecovery({ has_code: true, created_at: new Date().toISOString(), code: body.recovery_code });
-      toast.success("Kode pemulihan dibuat. Simpan sekarang!");
-    } catch (err) {
-      toast.error(err.message);
-    } finally {
-      setGenLoading(false);
-    }
-  };
 
   useEffect(() => {
     fetch(`${API_URL}/api/settings`, { credentials: "include" })
@@ -348,33 +323,6 @@ const Settings = () => {
             </PrintPortal>
           </div>
         </form>
-
-        <Card className="border" data-testid="recovery-card">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-lg"><KeyRound className="w-5 h-5" /> Kode Pemulihan Sandi Admin</CardTitle>
-            <CardDescription>Jika lupa sandi, klik "Lupa sandi admin?" di halaman login dan masukkan kode ini. Kode hanya ditampilkan sekali dan hanya bisa dipakai sekali.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <p className="text-sm" data-testid="recovery-status">
-              {recovery.has_code
-                ? `Kode pemulihan aktif${recovery.created_at ? ` (dibuat ${new Date(recovery.created_at).toLocaleString("id-ID")})` : ""}.`
-                : "Belum ada kode pemulihan. Buat sekarang agar akun admin bisa dipulihkan."}
-            </p>
-            {recovery.code && (
-              <div className="flex flex-wrap items-center gap-3 p-4 rounded-xl border-2 border-black bg-yellow-100" data-testid="recovery-code-box">
-                <span className="font-mono text-2xl font-bold tracking-widest" data-testid="recovery-code">{recovery.code}</span>
-                <Button type="button" size="sm" variant="outline" onClick={() => { navigator.clipboard?.writeText(recovery.code); toast.success("Kode disalin"); }} data-testid="btn-copy-recovery">
-                  <Copy className="w-4 h-4 mr-1" /> Salin
-                </Button>
-                <span className="text-xs text-red-700 font-bold w-full">Catat / simpan kode ini sekarang — tidak akan ditampilkan lagi.</span>
-              </div>
-            )}
-            <Button type="button" variant={recovery.has_code ? "outline" : "default"} onClick={handleGenerateCode} disabled={genLoading} data-testid="btn-generate-recovery">
-              {genLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <KeyRound className="w-4 h-4 mr-2" />}
-              {recovery.has_code ? "Buat Kode Baru (kode lama hangus)" : "Buat Kode Pemulihan"}
-            </Button>
-          </CardContent>
-        </Card>
 
         <Card className="border border-red-600" data-testid="danger-zone">
           <CardHeader>

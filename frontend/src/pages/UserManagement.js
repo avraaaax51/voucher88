@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import AdminLayout from "../components/AdminLayout";
+import { useAuth } from "../context/AuthContext";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
@@ -41,6 +42,10 @@ import { Users, UserPlus, Loader2, Shield, ScanLine, KeyRound, Trash2 } from "lu
 const API_URL = process.env.REACT_APP_BACKEND_URL;
 
 const UserManagement = () => {
+  const { user: me } = useAuth();
+  const isSuper = me?.role === "superadmin";
+  const ROLE_LABEL = { superadmin: "Super Admin", admin: "Admin", kasir: "Kasir" };
+  const canManage = (u) => u.role !== "superadmin" && (isSuper || u.role === "kasir");
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [createLoading, setCreateLoading] = useState(false);
@@ -230,7 +235,7 @@ const UserManagement = () => {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="kasir">Kasir</SelectItem>
-                      <SelectItem value="admin">Admin</SelectItem>
+                      {isSuper && <SelectItem value="admin">Admin</SelectItem>}
                     </SelectContent>
                   </Select>
                 </div>
@@ -285,7 +290,7 @@ const UserManagement = () => {
                 </div>
                 <div>
                   <p className="text-2xl font-bold">
-                    {users.filter((u) => u.role === "admin").length}
+                    {users.filter((u) => u.role !== "kasir").length}
                   </p>
                   <p className="text-sm text-muted-foreground">Admin</p>
                 </div>
@@ -346,19 +351,21 @@ const UserManagement = () => {
                         </TableCell>
                         <TableCell>
                           <Badge
-                            variant={user.role === "admin" ? "default" : "secondary"}
+                            variant={user.role !== "kasir" ? "default" : "secondary"}
                             className={
-                              user.role === "admin"
+                              user.role === "superadmin"
+                                ? "bg-black text-yellow-300 hover:bg-black"
+                                : user.role === "admin"
                                 ? "bg-amber-100 text-amber-800 hover:bg-amber-100"
                                 : "bg-emerald-100 text-emerald-800 hover:bg-emerald-100"
                             }
                           >
-                            {user.role === "admin" ? (
+                            {user.role !== "kasir" ? (
                               <Shield className="w-3 h-3 mr-1" />
                             ) : (
                               <ScanLine className="w-3 h-3 mr-1" />
                             )}
-                            {user.role}
+                            {ROLE_LABEL[user.role] || user.role}
                           </Badge>
                         </TableCell>
                         <TableCell className="text-muted-foreground">
@@ -366,12 +373,14 @@ const UserManagement = () => {
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-1">
-                            <Button variant="ghost" size="icon" title="Reset password / PIN" onClick={() => setResetTarget(user)} data-testid={`btn-reset-user-${user._id}`}>
+                            {canManage(user) && (<>
+                            <Button variant="ghost" size="icon" title="Reset sandi" onClick={() => setResetTarget(user)} data-testid={`btn-reset-user-${user._id}`}>
                               <KeyRound className="w-4 h-4" />
                             </Button>
                             <Button variant="ghost" size="icon" title="Hapus user" className="text-red-600 hover:text-red-700" onClick={() => handleDelete(user)} data-testid={`btn-delete-user-${user._id}`}>
                               <Trash2 className="w-4 h-4" />
                             </Button>
+                            </>)}
                           </div>
                         </TableCell>
                       </TableRow>

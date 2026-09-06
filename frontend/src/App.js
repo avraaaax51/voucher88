@@ -28,7 +28,7 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
   }
 
   if (allowedRoles && !allowedRoles.includes(user.role)) {
-    return <Navigate to={user.role === "admin" ? "/admin" : "/kasir"} replace />;
+    return <Navigate to={user.role === "kasir" ? "/kasir" : "/admin"} replace />;
   }
 
   return children;
@@ -50,12 +50,12 @@ const RoleRedirect = () => {
     return <Navigate to="/login" replace />;
   }
 
-  return <Navigate to={user.role === "admin" ? "/admin" : "/kasir"} replace />;
+  return <Navigate to={user.role === "kasir" ? "/kasir" : "/admin"} replace />;
 };
 
 
-const ADMIN_ROLES = ["admin"];
-const CASHIER_ROLES = ["admin", "kasir"];
+const ADMIN_ROLES = ["superadmin", "admin"];
+const CASHIER_ROLES = ["superadmin", "admin", "kasir"];
 function App() {
   return (
     <AuthProvider>

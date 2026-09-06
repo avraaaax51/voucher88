@@ -6,6 +6,12 @@ load_dotenv(ROOT_DIR / '.env')
 
 from fastapi import FastAPI, APIRouter, HTTPException, Request, Response, Depends
 from fastapi.responses import FileResponse
+import ipaddress
+import re
+import httpx
+from html import escape
+from html.parser import HTMLParser
+from urllib.parse import urlparse
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 from bson import ObjectId
@@ -87,10 +93,108 @@ async def get_current_user(request: Request) -> dict:
 def require_role(allowed_roles: list):
     async def role_checker(request: Request):
         user = await get_current_user(request)
-        if user["role"] not in allowed_roles:
+        if user["role"] != "superadmin" and user["role"] not in allowed_roles:
             raise HTTPException(status_code=403, detail="Akses ditolak")
         return user
     return role_checker
+
+
+# ==================== EMAIL (Emergent managed) ====================
+EMAIL_BASE_URL = "https://integrations.emergentagent.com"
+EMAIL_KEY = os.environ["EMERGENT_EMAIL_KEY"]
+EMAIL_FROM_NAME = os.environ["EMAIL_FROM_NAME"]
+OWNER_EMAIL = os.environ["OWNER_EMAIL"]
+
+_SHORTENERS = ("bit.ly", "tinyurl.com", "t.co", "is.gd", "cutt.ly", "goo.gl", "rebrand.ly")
+_CRED_ASK = ("reply with your password", "reply with the code", "send your password", "cvv",
+             "send us your password", "enter your password below", "confirm your card number",
+             "your full card number", "seed phrase", "recovery phrase", "verify your card",
+             "social security number", "confirm your bank details")
+_HOSTISH = re.compile(r"\b(?:https?://)?((?:[a-z0-9-]+\.)+[a-z]{2,})", re.I)
+
+def _host_ok(host: str) -> bool:
+    if not host or "xn--" in host:
+        return False
+    try:
+        ipaddress.ip_address(host)
+        return False
+    except ValueError:
+        pass
+    return not any(host == s or host.endswith("." + s) for s in _SHORTENERS)
+
+def _same_site(shown: str, real: str) -> bool:
+    return shown == real or real.endswith("." + shown) or shown.endswith("." + real)
+
+class _EmailScan(HTMLParser):
+    def __init__(self):
+        super().__init__()
+        self.tags, self.urls, self.anchors = set(), [], []
+        self._href, self._text = None, []
+    def handle_starttag(self, tag, attrs):
+        self.tags.add(tag.lower())
+        self.urls += [v for k, v in attrs if k.lower() in ("href", "src") and v]
+        if tag.lower() == "a":
+            self._href = dict((k.lower(), v) for k, v in attrs).get("href")
+            self._text = []
+    def handle_data(self, data):
+        if self._href is not None:
+            self._text.append(data)
+    def handle_endtag(self, tag):
+        if tag.lower() == "a" and self._href is not None:
+            self.anchors.append((self._href, "".join(self._text)))
+            self._href, self._text = None, []
+
+def _assert_safe_email(subject: str, html: str) -> None:
+    scan = _EmailScan(); scan.feed(html)
+    if scan.tags & {"form", "input", "textarea", "select"}:
+        raise ValueError("No forms or input fields in email (G2)")
+    body = f"{subject}\n{html}".lower()
+    for p in _CRED_ASK:
+        if p in body:
+            raise ValueError(f"Email asks the recipient for credentials: {p!r} (G2)")
+    for url in scan.urls:
+        low = url.strip().lower()
+        if low.startswith(("mailto:", "tel:", "cid:", "#")):
+            continue
+        if not low.startswith("https://"):
+            raise ValueError(f"Email links/assets must be absolute https: {url!r} (G3)")
+        host = urlparse(low).hostname or ""
+        if not _host_ok(host) or urlparse(low).username is not None:
+            raise ValueError(f"Shortened, numeric-host or credential-bearing URL: {url!r} (G3)")
+    for href, text in scan.anchors:
+        real = urlparse(href.strip().lower()).hostname or ""
+        if not real:
+            continue
+        for m in _HOSTISH.finditer(text):
+            if not _same_site(m.group(1).lower(), real):
+                raise ValueError(f"Anchor text {m.group(1)!r} != real link host {real!r} (G3)")
+
+async def send_email(*, to: str, subject: str, html: str) -> str | None:
+    _assert_safe_email(subject, html)
+    payload = {"to": [to], "subject": subject, "html": html, "from_name": EMAIL_FROM_NAME}
+    try:
+        async with httpx.AsyncClient(timeout=30) as client:
+            resp = await client.post(f"{EMAIL_BASE_URL}/api/v1/email/send", headers={"X-Email-Key": EMAIL_KEY}, json=payload)
+        resp.raise_for_status()
+        return resp.json().get("id")
+    except httpx.HTTPStatusError as e:
+        logging.error(f"Email send failed: {e.response.status_code} {e.response.text}")
+        raise HTTPException(status_code=502, detail="Gagal mengirim email")
+    except Exception as e:
+        logging.error(f"Email send error: {e}")
+        raise HTTPException(status_code=500, detail="Gagal mengirim email")
+
+def reset_code_email_html(name: str, code: str) -> str:
+    return (
+        '<table role="presentation" width="100%"><tr><td style="padding:24px;font-family:Arial,sans-serif;color:#111">'
+        f'<h2 style="margin:0 0 12px">{escape(EMAIL_FROM_NAME)} - Kode Reset Sandi</h2>'
+        f'<p>Permintaan reset sandi untuk akun <strong>{escape(name)}</strong>.</p>'
+        f'<p style="font-size:32px;letter-spacing:8px;font-weight:bold;margin:16px 0">{escape(code)}</p>'
+        '<p>Masukkan kode ini di halaman login aplikasi (menu "Lupa sandi") bersama sandi baru Anda. Kode berlaku 10 menit dan hanya bisa dipakai sekali.</p>'
+        '<p>Jika Anda tidak meminta reset, abaikan email ini.</p>'
+        f'<p style="font-size:12px;color:#888">Dikirim oleh {escape(EMAIL_FROM_NAME)}. Kami tidak pernah meminta sandi Anda melalui email.</p>'
+        '</td></tr></table>'
+    )
 
 # Pydantic Models
 class UserCreate(BaseModel):
@@ -148,9 +252,12 @@ class ChangePassword(BaseModel):
     current_password: str
     new_password: str
 
-class RecoverPassword(BaseModel):
+class ForgotPassword(BaseModel):
     name: str
-    recovery_code: str
+
+class ResetWithCode(BaseModel):
+    name: str
+    code: str
     new_password: str
 
 class VoucherRedeem(BaseModel):
@@ -194,18 +301,21 @@ async def seed_admin():
     admin_email = os.environ.get("ADMIN_EMAIL", "admin@example.com").lower()
     admin_password = os.environ.get("ADMIN_PASSWORD", "admin123")
     
-    existing = await db.users.find_one({"email": admin_email})
-    if existing is None:
-        hashed = hash_password(admin_password)
-        await db.users.insert_one({
-            "email": admin_email,
-            "password_hash": hashed,
-            "name": "Admin",
-            "name_lower": "admin",
-            "role": "admin",
-            "created_at": datetime.now(timezone.utc)
-        })
-        logging.info(f"Admin user created: {admin_email}")
+    if await db.users.count_documents({"role": "superadmin"}) == 0:
+        existing = await db.users.find_one({"name_lower": "admin"}) or await db.users.find_one({"email": admin_email})
+        if existing:
+            await db.users.update_one({"_id": existing["_id"]}, {"$set": {"role": "superadmin"}})
+            logging.info("Existing admin promoted to superadmin")
+        else:
+            await db.users.insert_one({
+                "email": admin_email,
+                "password_hash": hash_password(admin_password),
+                "name": "Admin",
+                "name_lower": "admin",
+                "role": "superadmin",
+                "created_at": datetime.now(timezone.utc)
+            })
+            logging.info("Super admin created")
     async for u in db.users.find({"name_lower": {"$exists": False}}):
         await db.users.update_one({"_id": u["_id"]}, {"$set": {"name_lower": u["name"].strip().lower()}})
 
@@ -225,8 +335,9 @@ async def write_test_credentials():
     credentials_content = f"""# VoucherKu Test Credentials
 
 ## Admin Account
-- Nama (username): Admin
-- Sandi awal (6 angka): {os.environ.get("ADMIN_PASSWORD", "admin123")}  (hanya dipakai saat akun admin pertama dibuat; jika sudah diganti lewat menu Ganti Sandi, gunakan sandi baru)
+- Nama (username): Admin  (role: superadmin)
+- Sandi awal (6 angka): {os.environ.get("ADMIN_PASSWORD", "admin123")}  (hanya dipakai saat akun pertama dibuat; jika sudah diganti lewat menu Ganti Sandi, gunakan sandi baru)
+- Lupa sandi: kode 6 digit dikirim ke OWNER_EMAIL ({os.environ.get("OWNER_EMAIL", "")}) via POST /api/auth/forgot-password
 - Email (info only, not used for login): {os.environ.get("ADMIN_EMAIL", "admin@example.com")}
 - Role: admin
 
@@ -340,49 +451,68 @@ async def login(data: UserLogin, response: Response):
 async def get_me(user: dict = Depends(get_current_user)):
     return user
 
-@api_router.post("/auth/recovery-code")
-async def generate_recovery_code(user: dict = Depends(require_role(["admin"]))):
-    """Generate a one-time recovery code for the current admin (shown once)"""
-    alphabet = string.ascii_uppercase + string.digits
-    raw = "".join(secrets.choice(alphabet) for _ in range(12))
-    code = f"{raw[:4]}-{raw[4:8]}-{raw[8:]}"
-    await db.users.update_one(
-        {"_id": ObjectId(user["_id"])},
-        {"$set": {"recovery_hash": hash_password(raw), "recovery_created_at": datetime.now(timezone.utc)}}
-    )
-    return {"recovery_code": code, "message": "Simpan kode ini di tempat aman. Kode hanya ditampilkan sekali dan hanya bisa dipakai satu kali."}
+@api_router.get("/auth/names")
+async def public_login_names():
+    """Names shown on the login page for quick selection"""
+    users = await db.users.find({}, {"name": 1, "role": 1}).sort([("role", 1), ("name", 1)]).to_list(100)
+    order = {"superadmin": 0, "admin": 1, "kasir": 2}
+    users.sort(key=lambda u: (order.get(u["role"], 9), u["name"].lower()))
+    return {"users": [{"name": u["name"], "role": u["role"]} for u in users]}
 
-@api_router.get("/auth/recovery-code/status")
-async def recovery_code_status(user: dict = Depends(require_role(["admin"]))):
-    doc = await db.users.find_one({"_id": ObjectId(user["_id"])}, {"recovery_hash": 1, "recovery_created_at": 1})
-    created = doc.get("recovery_created_at") if doc else None
-    return {"has_code": bool(doc and doc.get("recovery_hash")), "created_at": created.isoformat() if isinstance(created, datetime) else None}
-
-@api_router.post("/auth/recover")
-async def recover_password(data: RecoverPassword):
-    """Reset an admin's password using a recovery code (public, brute-force limited)"""
-    identifier = f"recovery:{data.name.strip().lower()}"
+async def _check_rate(identifier: str, max_attempts: int = 5):
     attempts = await db.login_attempts.find_one({"identifier": identifier})
-    if attempts and attempts.get("count", 0) >= 5:
+    if attempts and attempts.get("count", 0) >= max_attempts:
         if attempts.get("lockout_until") and datetime.now(timezone.utc) < attempts["lockout_until"]:
             raise HTTPException(status_code=429, detail="Terlalu banyak percobaan. Coba lagi dalam 15 menit.")
         await db.login_attempts.delete_one({"identifier": identifier})
-    validate_numeric_password(data.new_password)
-    raw = data.recovery_code.replace("-", "").replace(" ", "").upper()
-    user = await db.users.find_one({"name_lower": data.name.strip().lower(), "role": "admin"})
-    if not user or not user.get("recovery_hash") or not verify_password(raw, user["recovery_hash"]):
-        await db.login_attempts.update_one(
-            {"identifier": identifier},
-            {"$inc": {"count": 1}, "$set": {"lockout_until": datetime.now(timezone.utc) + timedelta(minutes=15)}},
-            upsert=True,
-        )
-        raise HTTPException(status_code=400, detail="Nama atau kode pemulihan salah")
+
+async def _bump_rate(identifier: str):
+    await db.login_attempts.update_one(
+        {"identifier": identifier},
+        {"$inc": {"count": 1}, "$set": {"lockout_until": datetime.now(timezone.utc) + timedelta(minutes=15)}},
+        upsert=True,
+    )
+
+@api_router.post("/auth/forgot-password")
+async def forgot_password(data: ForgotPassword):
+    """Send a 6-digit reset code to the fixed owner email (admin/superadmin accounts only)"""
+    name_lower = data.name.strip().lower()
+    identifier = f"forgot:{name_lower}"
+    await _check_rate(identifier, max_attempts=3)
+    await _bump_rate(identifier)
+    user = await db.users.find_one({"name_lower": name_lower, "role": {"$in": ["admin", "superadmin"]}})
+    masked = OWNER_EMAIL[:3] + "***" + OWNER_EMAIL[OWNER_EMAIL.index("@"):]
+    if not user:
+        raise HTTPException(status_code=400, detail="Akun admin dengan nama tersebut tidak ditemukan")
+    code = f"{secrets.randbelow(1000000):06d}"
     await db.users.update_one(
         {"_id": user["_id"]},
-        {"$set": {"password_hash": hash_password(data.new_password)}, "$unset": {"recovery_hash": "", "recovery_created_at": ""}}
+        {"$set": {"reset_code_hash": hash_password(code), "reset_code_expires": datetime.now(timezone.utc) + timedelta(minutes=10)}}
     )
-    await db.login_attempts.delete_many({"identifier": {"$in": [identifier, user["name_lower"]]}})
-    return {"message": "Sandi admin berhasil direset. Kode pemulihan sudah tidak berlaku, buat kode baru setelah login."}
+    await send_email(to=OWNER_EMAIL, subject=f"{EMAIL_FROM_NAME} - Kode reset sandi {user['name']}", html=reset_code_email_html(user["name"], code))
+    return {"message": f"Kode reset dikirim ke {masked}. Berlaku 10 menit.", "email_hint": masked}
+
+@api_router.post("/auth/reset-with-code")
+async def reset_with_code(data: ResetWithCode):
+    name_lower = data.name.strip().lower()
+    identifier = f"reset:{name_lower}"
+    await _check_rate(identifier)
+    validate_numeric_password(data.new_password)
+    user = await db.users.find_one({"name_lower": name_lower, "role": {"$in": ["admin", "superadmin"]}})
+    ok = (
+        user and user.get("reset_code_hash") and user.get("reset_code_expires")
+        and datetime.now(timezone.utc) <= user["reset_code_expires"]
+        and verify_password(data.code.strip(), user["reset_code_hash"])
+    )
+    if not ok:
+        await _bump_rate(identifier)
+        raise HTTPException(status_code=400, detail="Kode salah atau sudah kedaluwarsa")
+    await db.users.update_one(
+        {"_id": user["_id"]},
+        {"$set": {"password_hash": hash_password(data.new_password)}, "$unset": {"reset_code_hash": "", "reset_code_expires": ""}}
+    )
+    await db.login_attempts.delete_many({"identifier": {"$in": [identifier, f"forgot:{name_lower}", name_lower]}})
+    return {"message": "Sandi berhasil direset. Silakan login dengan sandi baru."}
 
 @api_router.post("/auth/change-password")
 async def change_password(data: ChangePassword, user: dict = Depends(get_current_user)):
@@ -410,6 +540,8 @@ async def register(data: UserCreate, response: Response, admin: dict = Depends(r
     validate_numeric_password(data.password)
     if data.role not in ("admin", "kasir"):
         raise HTTPException(status_code=400, detail="Role tidak valid")
+    if data.role == "admin" and admin["role"] != "superadmin":
+        raise HTTPException(status_code=403, detail="Hanya Super Admin yang dapat membuat akun admin")
     
     if await db.users.find_one({"name_lower": name.lower()}):
         raise HTTPException(status_code=400, detail="Nama sudah digunakan")
@@ -449,14 +581,21 @@ async def delete_user(user_id: str, admin: dict = Depends(require_role(["admin"]
     target = await db.users.find_one({"_id": ObjectId(user_id)})
     if not target:
         raise HTTPException(status_code=404, detail="User tidak ditemukan")
-    if target["role"] == "admin" and await db.users.count_documents({"role": "admin"}) <= 1:
-        raise HTTPException(status_code=400, detail="Tidak bisa menghapus admin terakhir")
+    if target["role"] == "superadmin":
+        raise HTTPException(status_code=400, detail="Akun Super Admin tidak bisa dihapus")
+    if target["role"] == "admin" and admin["role"] != "superadmin":
+        raise HTTPException(status_code=403, detail="Hanya Super Admin yang dapat menghapus admin")
     await db.users.delete_one({"_id": ObjectId(user_id)})
     return {"message": "User berhasil dihapus"}
 
 @api_router.put("/users/{user_id}/reset")
 async def reset_user_credentials(user_id: str, data: UserReset, admin: dict = Depends(require_role(["admin"]))):
     validate_numeric_password(data.password)
+    target = await db.users.find_one({"_id": ObjectId(user_id)})
+    if not target:
+        raise HTTPException(status_code=404, detail="User tidak ditemukan")
+    if target["role"] in ("admin", "superadmin") and admin["role"] != "superadmin" and str(target["_id"]) != admin["_id"]:
+        raise HTTPException(status_code=403, detail="Hanya Super Admin yang dapat mereset sandi admin")
     update = {"password_hash": hash_password(data.password)}
     result = await db.users.update_one({"_id": ObjectId(user_id)}, {"$set": update})
     if result.matched_count == 0:

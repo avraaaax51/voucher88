@@ -1,0 +1,36 @@
+{
+  "summary": "Iteration 17: full backend + frontend smoke for Super Admin role and email-based forgot-password flow. 10/10 pytest cases green. Frontend chips, forgot dialog, role options, badges, and Settings-no-recovery-card all verified.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {"flow": "Login -> logout -> quick-name preselect", "issue": "voucher88_last_name may not always be written to localStorage: setItem is called AFTER navigate() (LoginPage.js line 47), which can be lost when component unmounts. In smoke test, after clearing cookies and returning to /, the preselected name was empty even though a successful login had just occurred.", "affected_selectors": ["[data-testid=input-name]"]}
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration17.py",
+    "/app/test_reports/pytest/iteration17.xml"
+  ],
+  "action_items": [
+    "Move localStorage.setItem('voucher88_last_name', name.trim()) to BEFORE navigate() in /app/frontend/src/pages/LoginPage.js so the last-used name is persisted reliably for the quick-name preselect."
+  ],
+  "critical_code_review_comments": [
+    "LoginPage.js: localStorage write is after navigate() — race with unmount. Trivial fix, reorder lines.",
+    "server.py forgot_password: response body's email_hint reveals OWNER_EMAIL prefix regardless of whether the requested name is a real admin (400 path). Not a bug (400 short-circuits), but consider not returning the hint on error path.",
+    "server.py:462 _check_rate: 'reset:<name>' uses default max_attempts=5, matches spec (5 wrong -> 429 on 6th). Verified.",
+    "server.py:483 forgot_password filters {role: admin/superadmin}: matches spec — kasir names get 400. Verified.",
+    "server.py has grown past 1000 lines; recommend modular split (auth/vouchers/reports)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration17.py",
+    "/app/test_reports/iteration_17.json"
+  ],
+  "success_rate": {"backend": "100% (10/10)", "frontend": "100% (smoke)"},
+  "test_credentials": "Admin / 123321 (restored at end of run).",
+  "seed_data_creation": "Created TEST_admin2, TEST_admin4, TEST_kasir9 via /auth/register; all deleted by test_zzz_final_cleanup. login_attempts collection cleared at end.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "test_iteration17.py covers: superadmin login, /auth/names schema, admin/kasir permission matrix (register/delete/reset 403/400/200), forgot-password rate-limit (3/15min), reset-with-code brute-force 429 on 6th wrong, direct-hash simulated success + login + change-password back to 123321, and old endpoints /auth/recover* returning 404/405. Uses tz_aware Motor client for direct DB assertions on reset_code_expires window (8-12min).",
+  "rca of the issue": "N/A — no bugs found. Only minor UX ordering issue reported for main agent."
+}

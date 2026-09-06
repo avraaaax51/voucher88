@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { RecoverPasswordDialog } from "../components/RecoverPasswordDialog";
 import { useAuth } from "../context/AuthContext";
@@ -8,6 +8,8 @@ import { Label } from "../components/ui/label";
 import { toast } from "sonner";
 import { User, KeyRound, Loader2, Ticket } from "lucide-react";
 
+const API_URL = process.env.REACT_APP_BACKEND_URL;
+
 const LoginPage = () => {
   const navigate = useNavigate();
   const { login } = useAuth();
@@ -15,6 +17,20 @@ const LoginPage = () => {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [recoverOpen, setRecoverOpen] = useState(false);
+  const [names, setNames] = useState([]);
+
+  useEffect(() => {
+    fetch(`${API_URL}/api/auth/names`)
+      .then((r) => r.json())
+      .then((d) => {
+        const list = d.users || [];
+        setNames(list);
+        const last = localStorage.getItem("voucher88_last_name");
+        const pick = list.find((u) => u.name === last) || (list.length === 1 ? list[0] : null);
+        if (pick) setName(pick.name);
+      })
+      .catch(() => {});
+  }, []);
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -27,7 +43,8 @@ const LoginPage = () => {
     setLoading(false);
     if (result.success) {
       toast.success(`Selamat datang, ${result.user.name}!`);
-      navigate(result.user.role === "admin" ? "/admin" : "/kasir");
+      navigate(result.user.role === "kasir" ? "/kasir" : "/admin");
+      localStorage.setItem("voucher88_last_name", name.trim());
     } else {
       toast.error(result.error);
     }
@@ -63,6 +80,25 @@ const LoginPage = () => {
           
           <div className="p-6 pt-5">
             <form onSubmit={handleLogin} className="space-y-4" data-testid="login-form">
+              {names.length > 0 && (
+                <div className="space-y-2">
+                  <Label className="font-bold text-black">Pilih akun</Label>
+                  <div className="flex flex-wrap gap-2" data-testid="quick-names">
+                    {names.map((u) => (
+                      <button
+                        key={u.name}
+                        type="button"
+                        onClick={() => { setName(u.name); setPassword(""); document.getElementById("password")?.focus(); }}
+                        className={`px-3 py-1.5 rounded-full border-2 border-black text-sm font-bold transition-all ${name.trim().toLowerCase() === u.name.toLowerCase() ? "bg-yellow-400 shadow-[2px_2px_0_0_#000]" : "bg-white hover:bg-yellow-100"}`}
+                        data-testid={`quick-name-${u.name.replace(/\s+/g, "-").toLowerCase()}`}
+                      >
+                        {u.name}
+                        <span className="ml-1 text-[10px] uppercase font-black text-gray-500">{u.role === "superadmin" ? "super" : u.role}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
               <div className="space-y-2">
                 <Label htmlFor="name" className="font-bold text-black">Nama</Label>
                 <div className="relative">
@@ -119,7 +155,7 @@ const LoginPage = () => {
                 Lupa sandi admin?
               </button>
             </form>
-            <RecoverPasswordDialog open={recoverOpen} onOpenChange={setRecoverOpen} />
+            <RecoverPasswordDialog open={recoverOpen} onOpenChange={setRecoverOpen} initialName={name} />
           </div>
         </div>
 

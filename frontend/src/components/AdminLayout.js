@@ -125,7 +125,7 @@ const AdminLayout = ({ children }) => {
                   </div>
                   <div className="flex-1 text-left">
                     <p className="text-sm font-medium truncate">{user?.name}</p>
-                    <p className="text-xs text-muted-foreground capitalize">{user?.role}</p>
+                    <p className="text-xs text-muted-foreground capitalize">{user?.role === "superadmin" ? "Super Admin" : user?.role}</p>
                   </div>
                 </button>
               </DropdownMenuTrigger>
@@ -210,7 +210,7 @@ const AdminLayout = ({ children }) => {
                   </div>
                   <div>
                     <p className="text-sm font-medium">{user?.name}</p>
-                    <p className="text-xs text-muted-foreground capitalize">{user?.role}</p>
+                    <p className="text-xs text-muted-foreground capitalize">{user?.role === "superadmin" ? "Super Admin" : user?.role}</p>
                   </div>
                 </div>
                 <Button 
