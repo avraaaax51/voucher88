@@ -172,3 +172,7 @@ Semua fitur inti sudah diimplementasi dan diuji.
 - lib/escpos.js: render voucher ke canvas 576px, raster GS v 0, cut 1D 56 42 00 per voucher, kirim base64 ke agen lokal (default http://localhost:9100). Agen: backend/static/voucher_print_agent.py (+ .bat), download via /api/print-agent/download/{file}.
 - Settings print_method (browser|agent), print_agent_url, print_printer_name; UI kartu "Cetak Langsung + Auto Cut" (tes koneksi, unduh agen, pratinjau bitmap). Semua tombol cetak memakai agen bila print_method=agent.
 - Catatan Chrome: fetch https→localhost butuh izin Local Network Access (prompt "Izinkan"); fetch memakai targetAddressSpace loopback.
+
+## Update 2026-09-05 — Ganti Sandi Sendiri (iteration_14)
+- POST /api/auth/change-password; dialog ChangePasswordDialog di menu user admin (btn-change-password) & header kasir (btn-change-password-kasir).
+- seed_admin tidak lagi mereset sandi admin dari env saat restart (ADMIN_PASSWORD hanya untuk pembuatan awal).

@@ -8,6 +8,7 @@ import { Input } from "../components/ui/input";
 import { Card, CardContent } from "../components/ui/card";
 import { toast } from "sonner";
 import { useSound } from "../hooks/useSound";
+import { ChangePasswordDialog } from "../components/ChangePasswordDialog";
 import { useAutoRefresh } from "../hooks/useAutoRefresh";
 import {
   ScanLine,
@@ -15,6 +16,7 @@ import {
   Volume2,
   VolumeX,
   History,
+  KeyRound,
   CheckCircle2,
   XCircle,
   ArrowLeft,
@@ -38,6 +40,7 @@ const CashierMode = () => {
   const scannerRef = useRef(null);
   const handleScanRef = useRef(null);
   const busyRef = useRef(false);
+  const [pwOpen, setPwOpen] = useState(false);
   const { enabled: soundOn, toggle: toggleSound, playSuccess, playError } = useSound();
   const [history, setHistory] = useState({ items: [], count: 0, total_nominal: 0 });
 
@@ -213,6 +216,16 @@ const CashierMode = () => {
             data-testid="btn-logout-kasir"
           >
             Logout
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setPwOpen(true)}
+            className="text-white hover:bg-emerald-700"
+            title="Ganti sandi"
+            data-testid="btn-change-password-kasir"
+          >
+            <KeyRound className="w-5 h-5" />
           </Button>
           <Button
             variant="ghost"
@@ -410,6 +423,8 @@ const CashierMode = () => {
             )}
           </CardContent>
         </Card>
+
+        <ChangePasswordDialog open={pwOpen} onOpenChange={setPwOpen} />
 
         {/* User Info */}
         <div className="mt-6 text-center text-sm text-muted-foreground">

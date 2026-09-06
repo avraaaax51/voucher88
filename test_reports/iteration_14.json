@@ -1,0 +1,27 @@
+{
+  "summary": "Tested new change-password feature (backend + frontend). All 8 backend pytest cases pass (login, unauth 401, wrong current 400, non-6-digit 400, new==current 400, valid change + re-login, seed_admin does not reset admin password after backend restart, kasir change-password flow with cleanup). Frontend flows verified: admin sidebar user menu opens ChangePasswordDialog; submit disabled until 6-digit + match; mismatch shows password-mismatch; wrong current triggers error toast; valid change closes dialog; re-login with new sandi works; admin sandi restored to 123456. Kasir header btn-change-password-kasir opens and closes the same dialog. Admin password has been restored to 123456 as required.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "CashierMode header", "issues": ["Header brand says 'VoucherKu' while AdminLayout brand says 'Voucher88' - inconsistent branding.", "Header is crowded on desktop: Logout text + KeyRound icon + sound icon sit tightly; consider grouping via a dropdown menu similar to admin."]}
+    ]
+  },
+  "test_report_links": ["/app/backend/tests/test_change_password.py", "/app/test_reports/pytest/iter14.xml"],
+  "action_items": ["(optional) Align kasir header brand name to 'Voucher88' to match AdminLayout.", "(optional) Consider tightening pytest-xdist test isolation: current admin-password tests race across workers; addressed by module-scoped restore fixture but running via `-o addopts=` (single worker) recommended for this file."],
+  "critical_code_review_comments": [
+    "seed_admin now correctly skips resetting existing admin password - verified via restart test.",
+    "change_password checks current password before checking new==current; behavior is correct per spec.",
+    "ChangePasswordDialog: uses credentials:'include' with REACT_APP_BACKEND_URL - correct.",
+    "Minor: server.py is ~830 lines; consider splitting auth/voucher/settings routers into separate modules for maintainability."
+  ],
+  "updated_files": ["/app/backend/tests/test_change_password.py"],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "Admin / 123456 (restored)",
+  "seed_data_creation": "Temporary kasir 'TESTKASIR14' created and deleted within pytest fixture teardown.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend pytest file test_change_password.py uses parallel xdist by default (via pytest.ini); admin password tests race when >1 worker. Run this file with `-o addopts=` to force serial execution. Admin sandi confirmed restored to 123456 at end of run.",
+  "rca of the issue": "N/A - no bugs found."
+}

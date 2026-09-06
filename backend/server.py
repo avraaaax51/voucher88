@@ -144,6 +144,10 @@ async def get_settings_doc() -> dict:
 class UserReset(BaseModel):
     password: str
 
+class ChangePassword(BaseModel):
+    current_password: str
+    new_password: str
+
 class VoucherRedeem(BaseModel):
     code: str
 
@@ -197,12 +201,6 @@ async def seed_admin():
             "created_at": datetime.now(timezone.utc)
         })
         logging.info(f"Admin user created: {admin_email}")
-    elif not verify_password(admin_password, existing["password_hash"]):
-        await db.users.update_one(
-            {"email": admin_email},
-            {"$set": {"password_hash": hash_password(admin_password)}}
-        )
-        logging.info("Admin password updated")
     async for u in db.users.find({"name_lower": {"$exists": False}}):
         await db.users.update_one({"_id": u["_id"]}, {"$set": {"name_lower": u["name"].strip().lower()}})
 
@@ -223,7 +221,7 @@ async def write_test_credentials():
 
 ## Admin Account
 - Nama (username): Admin
-- Sandi (6 angka): {os.environ.get("ADMIN_PASSWORD", "admin123")}
+- Sandi awal (6 angka): {os.environ.get("ADMIN_PASSWORD", "admin123")}  (hanya dipakai saat akun admin pertama dibuat; jika sudah diganti lewat menu Ganti Sandi, gunakan sandi baru)
 - Email (info only, not used for login): {os.environ.get("ADMIN_EMAIL", "admin@example.com")}
 - Role: admin
 
@@ -336,6 +334,17 @@ async def login(data: UserLogin, response: Response):
 @api_router.get("/auth/me")
 async def get_me(user: dict = Depends(get_current_user)):
     return user
+
+@api_router.post("/auth/change-password")
+async def change_password(data: ChangePassword, user: dict = Depends(get_current_user)):
+    validate_numeric_password(data.new_password)
+    doc = await db.users.find_one({"_id": ObjectId(user["_id"])})
+    if not doc or not verify_password(data.current_password, doc["password_hash"]):
+        raise HTTPException(status_code=400, detail="Sandi saat ini salah")
+    if data.new_password == data.current_password:
+        raise HTTPException(status_code=400, detail="Sandi baru harus berbeda dari sandi lama")
+    await db.users.update_one({"_id": doc["_id"]}, {"$set": {"password_hash": hash_password(data.new_password)}})
+    return {"message": "Sandi berhasil diganti"}
 
 @api_router.post("/auth/logout")
 async def logout(response: Response):

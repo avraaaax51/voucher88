@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { Button } from "./ui/button";
+import { ChangePasswordDialog } from "./ChangePasswordDialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -21,6 +22,7 @@ import {
   Settings as SettingsIcon,
   ScanLine,
   LogOut,
+  KeyRound,
   Menu,
   Store,
   ChevronRight,
@@ -39,6 +41,7 @@ const AdminLayout = ({ children }) => {
   const location = useLocation();
   const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [pwOpen, setPwOpen] = useState(false);
 
   const handleLogout = async () => {
     await logout();
@@ -129,6 +132,10 @@ const AdminLayout = ({ children }) => {
               <DropdownMenuContent align="end" className="w-56">
                 <DropdownMenuLabel>Akun Saya</DropdownMenuLabel>
                 <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => setPwOpen(true)} data-testid="btn-change-password">
+                  <KeyRound className="w-4 h-4 mr-2" />
+                  Ganti Sandi
+                </DropdownMenuItem>
                 <DropdownMenuItem 
                   onClick={handleLogout}
                   className="text-red-600 focus:text-red-600"
@@ -226,6 +233,7 @@ const AdminLayout = ({ children }) => {
           {children}
         </div>
       </main>
+      <ChangePasswordDialog open={pwOpen} onOpenChange={setPwOpen} />
     </div>
   );
 };
