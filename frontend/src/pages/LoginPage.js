@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { RecoverPasswordDialog } from "../components/RecoverPasswordDialog";
 import { useAuth } from "../context/AuthContext";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
@@ -13,6 +14,7 @@ const LoginPage = () => {
   const [name, setName] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [recoverOpen, setRecoverOpen] = useState(false);
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -113,7 +115,11 @@ const LoginPage = () => {
               <p className="text-xs text-center font-medium text-gray-500">
                 Admin dan kasir masuk dengan nama &amp; sandi 6 angka
               </p>
+              <button type="button" onClick={() => setRecoverOpen(true)} className="block mx-auto text-sm font-bold underline decoration-2 decoration-yellow-400 hover:text-yellow-700" data-testid="btn-forgot-password">
+                Lupa sandi admin?
+              </button>
             </form>
+            <RecoverPasswordDialog open={recoverOpen} onOpenChange={setRecoverOpen} />
           </div>
         </div>
 

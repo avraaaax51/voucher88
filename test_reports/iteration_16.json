@@ -1,0 +1,33 @@
+{
+  "summary": "Iteration 16 retest after tz_aware=True fix on Motor client. All lockout + datetime regression checks pass: 13/13 backend tests green, frontend smoke clean (login, dashboard w/ recent redemptions & dates, Kelola Voucher expiry column, Kasir history). The iter15 500-on-6th-recover bug is resolved and login lockout also correctly returns 429.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration16.py",
+    "/app/test_reports/pytest/iteration16.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py:28 now uses AsyncIOMotorClient(mongo_url, tz_aware=True) — good, this correctly fixes the naive-vs-aware datetime bug and is consistent with the aware datetimes written throughout the codebase.",
+    "server.py:305 and 367 lockout checks are symmetric between /auth/login and /auth/recover; both now compare aware datetimes (tz_aware=True guarantees Mongo returns aware). No hidden downstream comparisons found using stored datetimes.",
+    "server.py:497 create_vouchers still uses datetime.fromisoformat(expires_at.replace('Z','+00:00')) — correct. All ISO serialization paths verified in stats, /reports/daily, /redemptions/mine, /vouchers list.",
+    "Minor (pre-existing, not blocking): server.py has grown past 880 lines — consider splitting auth, voucher, and report routers into modules for maintainability."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration16.py"
+  ],
+  "success_rate": {"backend": "100% (13/13)", "frontend": "100%"},
+  "test_credentials": "Admin / 123456 (unchanged after run).",
+  "seed_data_creation": "Two temporary vouchers (TEST_iter16, TEST_iter16_expired) created via POST /api/vouchers and cleaned up via DELETE /api/vouchers/{id} at end. Lockout entries for run-scoped fake identifiers cleared in session teardown.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "test_iteration16.py verifies: (1) 6th failed /auth/recover -> 429, (2) 6th failed /auth/login -> 429, (3) full voucher lifecycle serializes aware ISO datetimes, (4) expired voucher path returns 400 'kadaluarsa'. Use per-run uuid identifiers if adding more brute-force tests to avoid xdist worker cross-contamination on shared login_attempts collection.",
+  "rca of the issue": "Iteration 15 500 error root cause was Motor decoding BSON datetimes as naive UTC while server.py wrote aware datetimes (datetime.now(timezone.utc)+timedelta). Fix in iter16: passed tz_aware=True to AsyncIOMotorClient at server.py:28 so all reads return aware datetimes. Verified end-to-end: 5 wrong recover attempts return 400, 6th returns 429 (not 500); same for login. Datetime comparisons in redeem/expiry, stats aggregation, reports/daily grouping, redemptions/mine, and expiring filter all function normally."
+}

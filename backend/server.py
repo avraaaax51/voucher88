@@ -25,7 +25,7 @@ from contextlib import asynccontextmanager
 
 # MongoDB connection
 mongo_url = os.environ['MONGO_URL']
-client = AsyncIOMotorClient(mongo_url)
+client = AsyncIOMotorClient(mongo_url, tz_aware=True)
 db = client[os.environ['DB_NAME']]
 
 # JWT Config
@@ -146,6 +146,11 @@ class UserReset(BaseModel):
 
 class ChangePassword(BaseModel):
     current_password: str
+    new_password: str
+
+class RecoverPassword(BaseModel):
+    name: str
+    recovery_code: str
     new_password: str
 
 class VoucherRedeem(BaseModel):
@@ -334,6 +339,50 @@ async def login(data: UserLogin, response: Response):
 @api_router.get("/auth/me")
 async def get_me(user: dict = Depends(get_current_user)):
     return user
+
+@api_router.post("/auth/recovery-code")
+async def generate_recovery_code(user: dict = Depends(require_role(["admin"]))):
+    """Generate a one-time recovery code for the current admin (shown once)"""
+    alphabet = string.ascii_uppercase + string.digits
+    raw = "".join(secrets.choice(alphabet) for _ in range(12))
+    code = f"{raw[:4]}-{raw[4:8]}-{raw[8:]}"
+    await db.users.update_one(
+        {"_id": ObjectId(user["_id"])},
+        {"$set": {"recovery_hash": hash_password(raw), "recovery_created_at": datetime.now(timezone.utc)}}
+    )
+    return {"recovery_code": code, "message": "Simpan kode ini di tempat aman. Kode hanya ditampilkan sekali dan hanya bisa dipakai satu kali."}
+
+@api_router.get("/auth/recovery-code/status")
+async def recovery_code_status(user: dict = Depends(require_role(["admin"]))):
+    doc = await db.users.find_one({"_id": ObjectId(user["_id"])}, {"recovery_hash": 1, "recovery_created_at": 1})
+    created = doc.get("recovery_created_at") if doc else None
+    return {"has_code": bool(doc and doc.get("recovery_hash")), "created_at": created.isoformat() if isinstance(created, datetime) else None}
+
+@api_router.post("/auth/recover")
+async def recover_password(data: RecoverPassword):
+    """Reset an admin's password using a recovery code (public, brute-force limited)"""
+    identifier = f"recovery:{data.name.strip().lower()}"
+    attempts = await db.login_attempts.find_one({"identifier": identifier})
+    if attempts and attempts.get("count", 0) >= 5:
+        if attempts.get("lockout_until") and datetime.now(timezone.utc) < attempts["lockout_until"]:
+            raise HTTPException(status_code=429, detail="Terlalu banyak percobaan. Coba lagi dalam 15 menit.")
+        await db.login_attempts.delete_one({"identifier": identifier})
+    validate_numeric_password(data.new_password)
+    raw = data.recovery_code.replace("-", "").replace(" ", "").upper()
+    user = await db.users.find_one({"name_lower": data.name.strip().lower(), "role": "admin"})
+    if not user or not user.get("recovery_hash") or not verify_password(raw, user["recovery_hash"]):
+        await db.login_attempts.update_one(
+            {"identifier": identifier},
+            {"$inc": {"count": 1}, "$set": {"lockout_until": datetime.now(timezone.utc) + timedelta(minutes=15)}},
+            upsert=True,
+        )
+        raise HTTPException(status_code=400, detail="Nama atau kode pemulihan salah")
+    await db.users.update_one(
+        {"_id": user["_id"]},
+        {"$set": {"password_hash": hash_password(data.new_password)}, "$unset": {"recovery_hash": "", "recovery_created_at": ""}}
+    )
+    await db.login_attempts.delete_many({"identifier": {"$in": [identifier, user["name_lower"]]}})
+    return {"message": "Sandi admin berhasil direset. Kode pemulihan sudah tidak berlaku, buat kode baru setelah login."}
 
 @api_router.post("/auth/change-password")
 async def change_password(data: ChangePassword, user: dict = Depends(get_current_user)):
@@ -753,7 +802,12 @@ async def update_settings(data: StoreSettings, admin: dict = Depends(require_rol
 
 @api_router.get("/print-agent/download/{filename}")
 async def download_print_agent(filename: str):
-    allowed = {"voucher_print_agent.py": "text/x-python", "jalankan_print_agent.bat": "application/x-bat"}
+    allowed = {
+        "voucher_print_agent.py": "text/x-python",
+        "jalankan_print_agent.bat": "application/x-bat",
+        "Voucher88PrintAgent.ps1": "text/plain",
+        "Voucher88PrintAgent.bat": "application/x-bat",
+    }
     if filename not in allowed:
         raise HTTPException(status_code=404, detail="File tidak ditemukan")
     return FileResponse(ROOT_DIR / "static" / filename, media_type=allowed[filename], filename=filename)

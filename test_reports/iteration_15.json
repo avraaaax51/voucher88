@@ -1,0 +1,36 @@
+{
+  "summary": "Tested iteration 15 features: Print agent PS1/BAT downloads + admin recovery code flow (generate/status/recover/reuse/lockout) and forgot-password UI. Backend: 16/17 tests pass. Frontend: full recover flow works end-to-end. One backend bug found: brute-force lockout throws 500 due to naive-vs-aware datetime comparison in /api/auth/recover.",
+  "backend_issues": {
+    "critical": [
+      {"endpoint": "POST /api/auth/recover", "issue": "After 5 failed attempts, the 6th (or later) call raises 500 instead of 429. Root cause in server.py:367 — MongoDB returns `lockout_until` as a naive datetime, but code compares it with `datetime.now(timezone.utc)` (aware). Traceback: TypeError: can't compare offset-naive and offset-aware datetimes. Fix: either store as ISO string/aware via tz_aware Mongo client, or coerce on read: `lu = attempts['lockout_until']; if lu.tzinfo is None: lu = lu.replace(tzinfo=timezone.utc)`.", "priority": "HIGH"}
+    ],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration15.py",
+    "/app/test_reports/pytest/iteration15.xml"
+  ],
+  "action_items": [
+    "Fix naive/aware datetime comparison in /api/auth/recover lockout check (server.py line 367) so 6th failed attempt returns 429 instead of 500."
+  ],
+  "critical_code_review_comments": [
+    "server.py recover_password: lockout_until timezone bug (see above).",
+    "server.py download_print_agent: uses media_type 'text/plain' for .ps1 — acceptable, but 'application/octet-stream' would force download consistently across browsers.",
+    "Positive: recovery code endpoints correctly use hashed storage (recovery_hash), single-use ($unset on success), and admin role gating; kasir gets 403 as required."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration15.py"
+  ],
+  "success_rate": {"backend": "94% (16/17)", "frontend": "100%"},
+  "test_credentials": "Admin / 123456 (restored at end of test).",
+  "seed_data_creation": "Temporary kasir TESTKasir_* created and deleted during 403 test. login_attempts collection cleared post-test.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Backend endpoint for creating users is POST /api/auth/register (not /api/users). Recovery-code lockout identifier is 'recovery:<name_lower>'. Frontend Settings is at /admin/settings, not /settings. LoginPage forgot-password button opens RecoverPasswordDialog with testids input-recover-name/code/password/confirm and btn-submit-recover. Ensure login_attempts collection is cleaned before re-running brute-force test.",
+  "rca of the issue": "In /app/backend/server.py:367 the code compares `datetime.now(timezone.utc) < attempts['lockout_until']`. `attempts['lockout_until']` is written via `datetime.now(timezone.utc) + timedelta(...)` (aware), but Motor/PyMongo by default decodes BSON datetimes as naive UTC (tz_aware=False). Comparing aware < naive raises TypeError → FastAPI returns 500. Reproduction: POST /api/auth/recover 5 times with any wrong code for the same name, then a 6th call returns 500. Mitigation: pass `tz_aware=True` to AsyncIOMotorClient OR normalize on read: `lu = attempts['lockout_until']; lu = lu if lu.tzinfo else lu.replace(tzinfo=timezone.utc)`."
+}
