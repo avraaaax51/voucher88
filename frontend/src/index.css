@@ -247,6 +247,50 @@ code {
     position: relative;
 }
 
+.cashier-scanner-frame {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 1;
+    overflow: hidden;
+    background: #101716;
+    font-family: var(--font-body);
+}
+
+.cashier-scanner-frame video {
+    width: 100% !important;
+    height: 100% !important;
+    object-fit: cover !important;
+}
+
+.cashier-scanner-frame::before {
+    position: absolute;
+    z-index: 2;
+    inset: 12%;
+    content: "";
+    pointer-events: none;
+    border: 3px solid #facc15;
+    box-shadow: 0 0 0 999px rgba(0, 0, 0, 0.26);
+}
+
+.cashier-scanner-frame::after {
+    position: absolute;
+    z-index: 3;
+    top: 50%;
+    right: 14%;
+    left: 14%;
+    height: 2px;
+    content: "";
+    pointer-events: none;
+    background: #34d399;
+    box-shadow: 0 0 10px #34d399;
+    animation: scan 2s ease-in-out infinite;
+}
+
+#qr-reader select,
+#qr-reader button {
+    display: none !important;
+}
+
 .scanner-overlay::after {
     content: '';
     position: absolute;

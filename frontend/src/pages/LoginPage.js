@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { RecoverPasswordDialog } from "../components/RecoverPasswordDialog";
 import { useAuth } from "../context/AuthContext";
 import { Button } from "../components/ui/button";
@@ -12,6 +12,7 @@ const API_URL = process.env.REACT_APP_BACKEND_URL;
 
 const LoginPage = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { login } = useAuth();
   const [name, setName] = useState("");
   const [password, setPassword] = useState("");
@@ -43,7 +44,10 @@ const LoginPage = () => {
     setLoading(false);
     if (result.success) {
       toast.success(`Selamat datang, ${result.user.name}!`);
-      navigate(result.user.role === "kasir" ? "/kasir" : "/admin");
+      const nextPath = searchParams.get("next") || "";
+      const isSafePath = nextPath.startsWith("/") && !nextPath.startsWith("//");
+      const defaultPath = result.user.role === "kasir" ? "/kasir" : "/admin";
+      navigate(isSafePath ? nextPath : defaultPath);
       localStorage.setItem("voucher88_last_name", name.trim());
     } else {
       toast.error(result.error);
@@ -68,7 +72,7 @@ const LoginPage = () => {
             <Ticket className="w-10 h-10 text-black" />
           </div>
           <h1 className="text-4xl font-black text-black tracking-tight" style={{ fontFamily: 'system-ui, -apple-system, sans-serif' }}>
-            VoucherKu
+            Voucher88
           </h1>
           <p className="text-gray-600 mt-1 font-medium">Sistem Voucher Toko</p>
         </div>
@@ -161,7 +165,7 @@ const LoginPage = () => {
 
         {/* Footer text */}
         <p className="text-center text-xs text-gray-500 mt-6 font-medium">
-          VoucherKu v1.0
+          Voucher88 v1.0
         </p>
       </div>
     </div>

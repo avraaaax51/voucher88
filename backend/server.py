@@ -11,7 +11,7 @@ import re
 import httpx
 from html import escape
 from html.parser import HTMLParser
-from urllib.parse import urlparse
+from urllib.parse import quote, urlparse
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 from bson import ObjectId
@@ -296,6 +296,27 @@ def generate_qr_base64(data: str) -> str:
     buffer.seek(0)
     return base64.b64encode(buffer.getvalue()).decode()
 
+
+def build_voucher_scan_url(request: Request, code: str) -> str:
+    forwarded_scheme = request.headers.get("x-forwarded-proto", "").split(",")[0].strip()
+    forwarded_host = request.headers.get("x-forwarded-host", "").split(",")[0].strip()
+    scheme = forwarded_scheme if forwarded_scheme in {"http", "https"} else request.url.scheme
+    host = forwarded_host or request.headers.get("host", "")
+    base_url = f"{scheme}://{host}" if host else str(request.base_url).rstrip("/")
+    return f"{base_url}/kasir?scan={quote(code, safe='')}"
+
+
+async def record_login_activity(user: dict) -> None:
+    await db.login_activities.insert_one(
+        {
+            "user_id": str(user["_id"]),
+            "name": user["name"],
+            "role": user["role"],
+            "status": "success",
+            "logged_at": datetime.now(timezone.utc),
+        }
+    )
+
 # Startup event
 async def seed_admin():
     admin_email = os.environ.get("ADMIN_EMAIL", "admin@example.com").lower()
@@ -329,17 +350,18 @@ async def create_indexes():
     await db.vouchers.create_index("code", unique=True)
     await db.vouchers.create_index("expires_at")
     await db.login_attempts.create_index("identifier")
+    await db.login_activities.create_index("logged_at")
 
 async def write_test_credentials():
     """Write test credentials to memory file"""
-    credentials_content = f"""# VoucherKu Test Credentials
+    credentials_content = f"""# Voucher88 Test Credentials
 
 ## Admin Account
 - Nama (username): Admin  (role: superadmin)
-- Sandi awal (6 angka): {os.environ.get("ADMIN_PASSWORD", "admin123")}  (hanya dipakai saat akun pertama dibuat; jika sudah diganti lewat menu Ganti Sandi, gunakan sandi baru)
+- Sandi aktif: dikelola pemilik dan tidak disimpan di berkas proyek.
 - Lupa sandi: kode 6 digit dikirim ke OWNER_EMAIL ({os.environ.get("OWNER_EMAIL", "")}) via POST /api/auth/forgot-password
 - Email (info only, not used for login): {os.environ.get("ADMIN_EMAIL", "admin@example.com")}
-- Role: admin
+- Role: superadmin
 
 ## Auth Notes
 - Login uses name + 6-digit numeric password (case-insensitive name). Cookie-only (httpOnly), no Bearer.
@@ -433,6 +455,11 @@ async def login(data: UserLogin, response: Response):
     
     # Clear failed attempts
     await db.login_attempts.delete_one({"identifier": identifier})
+
+    try:
+        await record_login_activity(user)
+    except Exception as error:
+        logger.error("Failed to record login activity: %s", error)
     
     access_token = create_access_token(str(user["_id"]), user.get("email") or "", user["role"])
     refresh_token = create_refresh_token(str(user["_id"]))
@@ -574,6 +601,33 @@ async def get_users(admin: dict = Depends(require_role(["admin"]))):
         u["_id"] = str(u["_id"])
     return users
 
+
+@api_router.get("/users/login-activities")
+async def get_login_activities(
+    limit: int = 50,
+    admin: dict = Depends(require_role(["superadmin"])),
+):
+    safe_limit = min(max(limit, 1), 100)
+    activities = await db.login_activities.find(
+        {},
+        {"_id": 0},
+    ).sort("logged_at", -1).limit(safe_limit).to_list(safe_limit)
+    items = [
+        {
+            "user_id": activity["user_id"],
+            "name": activity["name"],
+            "role": activity["role"],
+            "status": activity["status"],
+            "logged_at": (
+                activity["logged_at"].isoformat()
+                if isinstance(activity["logged_at"], datetime)
+                else activity["logged_at"]
+            ),
+        }
+        for activity in activities
+    ]
+    return {"items": items}
+
 @api_router.delete("/users/{user_id}")
 async def delete_user(user_id: str, admin: dict = Depends(require_role(["admin"]))):
     if user_id == admin["_id"]:
@@ -616,7 +670,11 @@ async def reset_all_data(data: ResetData, admin: dict = Depends(require_role(["a
 # ==================== VOUCHER ROUTES ====================
 
 @api_router.post("/vouchers")
-async def create_vouchers(data: VoucherCreate, admin: dict = Depends(require_role(["admin"]))):
+async def create_vouchers(
+    data: VoucherCreate,
+    request: Request,
+    admin: dict = Depends(require_role(["admin"])),
+):
     """Create vouchers (admin only)"""
     prefix = data.prefix.strip().upper()
     if prefix and (not prefix.isalnum() or not prefix.isascii()):
@@ -638,7 +696,8 @@ async def create_vouchers(data: VoucherCreate, admin: dict = Depends(require_rol
     vouchers = []
     for i in range(data.quantity):
         code = generate_voucher_code(start_seq + i, prefix)
-        qr_base64 = generate_qr_base64(code)
+        scan_url = build_voucher_scan_url(request, code)
+        qr_base64 = generate_qr_base64(scan_url)
         
         voucher = {
             "code": code,
@@ -646,6 +705,7 @@ async def create_vouchers(data: VoucherCreate, admin: dict = Depends(require_rol
             "nominal": data.nominal,
             "terms": data.terms,
             "qr_code": qr_base64,
+            "scan_url": scan_url,
             "status": "draft",
             "printed": False,
             "printed_at": None,

@@ -1,13 +1,14 @@
-# VoucherKu - Product Requirements Document
+# Voucher88 - Product Requirements Document
 
 ## Ringkasan Produk
-VoucherKu adalah sistem manajemen voucher berbahasa Indonesia untuk toko tunggal dengan fitur pembuatan, pengelolaan, dan penukaran voucher.
+Voucher88 adalah sistem manajemen voucher berbahasa Indonesia untuk toko tunggal dengan
+fitur pembuatan, pengelolaan, pencetakan, dan penukaran voucher.
 
 ## Tech Stack
 - **Frontend**: React + Tailwind CSS + Shadcn UI
 - **Backend**: FastAPI (Python)
 - **Database**: MongoDB
-- **Authentication**: JWT-based dengan PIN cepat untuk kasir
+- **Authentication**: JWT cookie httpOnly dengan nama pengguna dan sandi 6 angka
 
 ## Fitur Utama
 
@@ -74,6 +75,7 @@ Contoh: ABC1D2E001, XY5Z8PQ002, 3XBI88W003
 
 ### Users
 - `GET /api/users` - List users (admin only)
+- `GET /api/users/login-activities` - Riwayat login (Super Admin only)
 
 ### Reports
 - `GET /api/stats` - Get statistics (admin only)
@@ -184,7 +186,19 @@ Semua fitur inti sudah diimplementasi dan diuji.
 ## Update 2026-09-06 — Super Admin + Lupa sandi via email (iteration_17 PASS)
 - Role superadmin: akun pertama "Admin" (sandi awal 123321, ADMIN_PASSWORD). require_role: superadmin lolos semua. Hanya superadmin buat/hapus admin & reset sandi admin; superadmin tak bisa dihapus. GET /api/auth/names publik → chip nama di login (preselect nama terakhir).
 - Lupa sandi: POST /auth/forgot-password {name} → kode 6 digit (bcrypt, 10 mnt) dikirim via Emergent managed email ke OWNER_EMAIL=avraaaax51@gmail.com (EMERGENT_EMAIL_KEY, EMAIL_FROM_NAME=Voucher88); POST /auth/reset-with-code. Rate limit 3/15m & 5/15m. Endpoint recovery-code lama dihapus.
-- Kredensial preview: Admin / 123321.
+- Kredensial Super Admin dikelola pemilik dan tidak dicatat di dokumen produk.
 
 ## Update 2026-09-06 — Badge status voucher (iteration_18)
 - Voucher belum dicetak/draft → status "Belum Aktif" (abu-abu). Badge cetak: Sudah dicetak hijau solid, Belum dicetak oranye putus-putus.
+
+## Update 2026-09-06 — Audit Login + Scan QR Cepat (iteration_19 PASS)
+- Login berhasil dicatat ke koleksi `login_activities`; tabel Aktivitas Login User muncul di
+  bawah Daftar User hanya untuk Super Admin. Endpoint menolak Admin dan Kasir (403), serta
+  hanya mengirim data aman: user, role, status, dan waktu.
+- QR voucher baru berisi tautan cepat `/kasir?scan=<kode>`. Kamera bawaan ponsel dapat membuka
+  tautan ini tanpa aplikasi sudah terbuka; sesi yang masih login langsung menjalankan penukaran.
+  QR voucher lama dengan payload kode tetap dapat dipindai dari halaman Kasir.
+- Kasir sekarang memakai kamera belakang langsung tanpa pemilih kamera, dengan tampilan bingkai
+  scan khusus dan fallback Ketik Kode ketika perangkat tidak memiliki kamera belakang.
+- Verifikasi: testing agent iteration_19 lulus (backend 6/6 dan frontend desktop/mobile).
+  Validasi kamera belakang fisik tetap perlu dilakukan pada ponsel pengguna.

@@ -37,7 +37,16 @@ import {
 } from "../components/ui/select";
 import { Badge } from "../components/ui/badge";
 import { toast } from "sonner";
-import { Users, UserPlus, Loader2, Shield, ScanLine, KeyRound, Trash2 } from "lucide-react";
+import {
+  Users,
+  UserPlus,
+  Loader2,
+  Shield,
+  ScanLine,
+  KeyRound,
+  Trash2,
+  LogIn,
+} from "lucide-react";
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
 
@@ -48,6 +57,8 @@ const UserManagement = () => {
   const canManage = (u) => u.role !== "superadmin" && (isSuper || u.role === "kasir");
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loginActivities, setLoginActivities] = useState([]);
+  const [loginActivitiesLoading, setLoginActivitiesLoading] = useState(false);
   const [createLoading, setCreateLoading] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [resetTarget, setResetTarget] = useState(null);
@@ -76,9 +87,33 @@ const UserManagement = () => {
     }
   }, []);
 
+  const fetchLoginActivities = useCallback(async () => {
+    if (!isSuper) {
+      setLoginActivities([]);
+      return;
+    }
+
+    setLoginActivitiesLoading(true);
+    try {
+      const response = await fetch(`${API_URL}/api/users/login-activities`, {
+        credentials: "include",
+      });
+      if (!response.ok) {
+        throw new Error("Gagal mengambil aktivitas login");
+      }
+      const data = await response.json();
+      setLoginActivities(data.items || []);
+    } catch (err) {
+      toast.error(err.message);
+    } finally {
+      setLoginActivitiesLoading(false);
+    }
+  }, [isSuper]);
+
   useEffect(() => {
     fetchUsers();
-  }, [fetchUsers]);
+    fetchLoginActivities();
+  }, [fetchLoginActivities, fetchUsers]);
 
   const handleDelete = async (u) => {
     if (!window.confirm(`Hapus user ${u.name}?`)) return;
@@ -168,6 +203,17 @@ const UserManagement = () => {
     });
   };
 
+  const formatLoginDate = (dateString) => {
+    if (!dateString) return "-";
+    return new Date(dateString).toLocaleString("id-ID", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  };
+
   return (
     <AdminLayout>
       <div className="space-y-6">
@@ -244,6 +290,7 @@ const UserManagement = () => {
                     type="button"
                     variant="outline"
                     onClick={() => setDialogOpen(false)}
+                    data-testid="btn-cancel-add-user"
                   >
                     Batal
                   </Button>
@@ -391,6 +438,82 @@ const UserManagement = () => {
             )}
           </CardContent>
         </Card>
+
+        {isSuper && (
+          <Card className="border" data-testid="login-activities-card">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <LogIn className="w-5 h-5" />
+                Aktivitas Login User
+              </CardTitle>
+              <CardDescription>
+                Riwayat masuk terbaru untuk seluruh akun.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {loginActivitiesLoading ? (
+                <div
+                  className="flex items-center justify-center py-12"
+                  data-testid="login-activities-loading"
+                >
+                  <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+                </div>
+              ) : loginActivities.length === 0 ? (
+                <div
+                  className="py-10 text-center text-muted-foreground"
+                  data-testid="login-activities-empty"
+                >
+                  Belum ada aktivitas login tercatat.
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <Table data-testid="login-activities-table">
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>User</TableHead>
+                        <TableHead>Role</TableHead>
+                        <TableHead>Waktu Login</TableHead>
+                        <TableHead className="text-right">Status</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {loginActivities.map((activity, index) => (
+                        <TableRow
+                          key={`${activity.user_id}-${activity.logged_at}-${index}`}
+                          data-testid={`login-activity-row-${index}`}
+                        >
+                          <TableCell
+                            className="font-medium"
+                            data-testid={`login-activity-name-${index}`}
+                          >
+                            {activity.name}
+                          </TableCell>
+                          <TableCell data-testid={`login-activity-role-${index}`}>
+                            {ROLE_LABEL[activity.role] || activity.role}
+                          </TableCell>
+                          <TableCell
+                            className="text-muted-foreground"
+                            data-testid={`login-activity-time-${index}`}
+                          >
+                            {formatLoginDate(activity.logged_at)}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Badge
+                              className="bg-emerald-600 text-white hover:bg-emerald-600"
+                              data-testid={`login-activity-status-${index}`}
+                            >
+                              Login berhasil
+                            </Badge>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         <Dialog open={!!resetTarget} onOpenChange={(o) => !o && setResetTarget(null)}>
           <DialogContent data-testid="reset-user-dialog">

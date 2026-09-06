@@ -1,0 +1,29 @@
+{
+  "summary": "Iteration 19: verified login-activity audit + Cashier scan-URL flow. Backend pytest (6/6 pass): superadmin GET /api/users/login-activities returns safe fields only and includes the fresh super login; role=admin and role=kasir both receive 403 on that endpoint; POST /api/vouchers returns scan_url ending with /kasir?scan=<code> plus a valid qr_code base64; kasir can redeem an active voucher exactly once (2nd attempt -> 400 'sudah pernah digunakan'); unauthenticated redeem -> 401. Frontend smoke (Playwright, desktop + 390px mobile): (a) Signed-out visit to /kasir?scan=TEST123CODE redirects to /login?next=%2Fkasir%3Fscan%3DTEST123CODE (next preserved). (b) Super sees the 'Aktivitas Login User' card on /admin/users (data-testid=login-activities-card); after ~1s the table populates via /api/users/login-activities. (c) A temp role=admin user on /admin/users does NOT render the activity card (correctly gated by isSuper). (d) /kasir renders qr-reader with zero <select> children inside #qr-reader (no camera-choice selector). Source uses Html5Qrcode.start with facingMode {exact:'environment'} directly, so back camera is the only constraint. In the preview browser without camera hardware the UI shows the localized error 'Kamera belakang tidak tersedia. Gunakan Ketik Kode.' with a retry button — expected in headless env. (e) No pageerror or runtime exception on scanner start/stop; only benign 401s from /api/auth/me during the pre-login state.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": ["/app/backend/tests/test_iteration19.py", "/app/test_reports/pytest/iter19.xml"],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py is now >1080 lines; recommend modularizing (routers/auth.py, routers/vouchers.py, routers/users.py, services/email.py). Same concern flagged in prior iterations.",
+    "record_login_activity currently only records success events; no failure logging. If auditability of failed attempts becomes a requirement, extend after the 401 branch in POST /api/auth/login.",
+    "get_login_activities safely projects out _id and password/pin hashes; response shape is {items:[{user_id,name,role,status,logged_at}]} — matches Super-Admin-only requirement (require_role(['superadmin'])).",
+    "build_voucher_scan_url correctly honours x-forwarded-proto/host so vouchers created behind the ingress produce absolute https URLs. Good.",
+    "CashierMode.getVoucherCode robustly handles a URL payload (extracts ?scan=...) and falls back to legacy raw-code payloads; scan-URL flow is idempotent thanks to quickScanRef and setSearchParams({replace:true}) deleting the ?scan param post-redemption.",
+    "Html5Qrcode.start uses facingMode {exact:'environment'} and no camera-picker UI is created; matches spec. However 'exact' constraint will hard-fail on devices without a rear camera (front-only laptop/tablet). This is intentional per PRD but may surprise admin users testing on desktop — the localized error already communicates it.",
+    "LoginPage handleLogin validates the next path with startsWith('/') && !startsWith('//'), preventing open-redirect via '//evil.com'. Good.",
+    "UserManagement fetches /api/users/login-activities only when isSuper is true and hides the card for non-super users — matches spec on both server AND client sides."
+  ],
+  "updated_files": ["/app/backend/tests/test_iteration19.py"],
+  "success_rate": {"backend": "100% (6/6)", "frontend": "100% smoke passed"},
+  "test_credentials": "Super Admin (temporary, do not delete): VerifikasiSuper1788688255 / 654321. Regular Admin/123321 no longer valid (password appears to have been changed). Tests create their own TESTAdmin*/TESTKasir* users via super session and clean them up.",
+  "seed_data_creation": "Created and cleaned up during pytest: one TESTAdmin* (role=admin), one TESTKasir* (role=kasir), one voucher with prefix 'TS' (title 'TEST Iter19'). During Playwright frontend smoke: one additional TESTAdminUI<ts> was created and deleted through the super API session.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Backend regression file /app/backend/tests/test_iteration19.py covers login-activities RBAC, voucher scan_url payload, single-use redemption, and unauthenticated 401. Use super_session as the admin gateway because ADMIN_PASSWORD=123321 in .env no longer matches the DB record. Real camera behaviour cannot be exercised in the preview browser; presence of #qr-reader with 0 <select> children is the accepted contract for the 'no camera picker + back-camera default' feature.",
+  "rca of the issue": "N/A - all requested behaviours verified end-to-end. The only observed non-issue is the localized 'Kamera belakang tidak tersedia' error rendered inside the preview browser, which is the intended fallback of the facingMode:{exact:'environment'} constraint on hardware without a rear camera."
+}

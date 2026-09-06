@@ -1,4 +1,10 @@
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import {
+  BrowserRouter,
+  Routes,
+  Route,
+  Navigate,
+  useLocation,
+} from "react-router-dom";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { Toaster } from "./components/ui/sonner";
 import LoginPage from "./pages/LoginPage";
@@ -14,6 +20,7 @@ import "./App.css";
 // Protected Route Component
 const ProtectedRoute = ({ children, allowedRoles }) => {
   const { user, loading } = useAuth();
+  const location = useLocation();
 
   if (loading) {
     return (
@@ -24,7 +31,8 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
   }
 
   if (!user) {
-    return <Navigate to="/login" replace />;
+    const nextPath = `${location.pathname}${location.search}`;
+    return <Navigate to={`/login?next=${encodeURIComponent(nextPath)}`} replace />;
   }
 
   if (allowedRoles && !allowedRoles.includes(user.role)) {

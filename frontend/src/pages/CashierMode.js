@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
-import { Html5QrcodeScanner } from "html5-qrcode";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { Html5Qrcode } from "html5-qrcode";
 import axios from "axios";
 import { useAuth } from "../context/AuthContext";
 import { Button } from "../components/ui/button";
@@ -27,19 +27,38 @@ import {
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
 
+const getVoucherCode = (value) => {
+  const rawValue = String(value || "").trim();
+  if (!rawValue) return "";
+
+  try {
+    const url = new URL(rawValue);
+    const quickScanCode = url.searchParams.get("scan");
+    if (quickScanCode) return quickScanCode.trim().toUpperCase();
+  } catch {
+    // Existing vouchers store only the code, so they remain valid for scanning.
+  }
+
+  return rawValue.split("/").pop().split("?")[0].trim().toUpperCase();
+};
+
 const CashierMode = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   
   const [mode, setMode] = useState("scan"); // scan or manual
   const [manualCode, setManualCode] = useState("");
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null); // { success, message, voucher }
   const [scannerReady, setScannerReady] = useState(false);
+  const [scannerError, setScannerError] = useState("");
   
   const scannerRef = useRef(null);
+  const scannerSessionRef = useRef(0);
   const handleScanRef = useRef(null);
   const busyRef = useRef(false);
+  const quickScanRef = useRef("");
   const [pwOpen, setPwOpen] = useState(false);
   const { enabled: soundOn, toggle: toggleSound, playSuccess, playError } = useSound();
   const [history, setHistory] = useState({ items: [], count: 0, total_nominal: 0 });
@@ -57,44 +76,72 @@ const CashierMode = () => {
   useAutoRefresh(fetchHistory);
   const lastScanRef = useRef({ code: "", at: 0 });
 
-  const initScanner = useCallback(() => {
+  const stopScanner = useCallback(async () => {
+    scannerSessionRef.current += 1;
+    const scanner = scannerRef.current;
+    scannerRef.current = null;
+    if (!scanner) return;
+
+    try {
+      await scanner.stop();
+    } catch {}
+    try {
+      await scanner.clear();
+    } catch {}
+  }, []);
+
+  const initScanner = useCallback(async () => {
+    if (scannerRef.current) return;
     setScannerReady(false);
-    
-    // Clear existing scanner
-    if (scannerRef.current) {
-      scannerRef.current.clear().catch(() => {});
-    }
-    
-    const scanner = new Html5QrcodeScanner(
-      "qr-reader",
-      {
-        fps: 10,
-        qrbox: { width: 250, height: 250 },
-        aspectRatio: 1,
-        showTorchButtonIfSupported: true,
-        showZoomSliderIfSupported: true,
-        defaultZoomValueIfSupported: 2,
-      },
-      false
-    );
-
-    scanner.render(
-      (decodedText) => {
-        const code = String(decodedText || "").trim().split("/").pop().toUpperCase();
-        const now = Date.now();
-        if (busyRef.current) return;
-        if (lastScanRef.current.code === code && now - lastScanRef.current.at < 4000) return;
-        lastScanRef.current = { code, at: now };
-        try { scanner.pause(true); } catch {}
-        handleScanRef.current?.(code);
-      },
-      (error) => {
-        // Error callback - ignore scan errors
-      }
-    );
-
+    setScannerError("");
+    const sessionId = scannerSessionRef.current + 1;
+    scannerSessionRef.current = sessionId;
+    const scanner = new Html5Qrcode("qr-reader", { verbose: false });
     scannerRef.current = scanner;
-    setScannerReady(true);
+
+    try {
+      await scanner.start(
+        { facingMode: { exact: "environment" } },
+        {
+          fps: 10,
+          qrbox: { width: 250, height: 250 },
+          aspectRatio: 1,
+          disableFlip: true,
+        },
+        (decodedText) => {
+          const code = getVoucherCode(decodedText);
+        const now = Date.now();
+          if (!code || busyRef.current) return;
+          if (lastScanRef.current.code === code && now - lastScanRef.current.at < 4000) return;
+          lastScanRef.current = { code, at: now };
+          try {
+            scanner.pause(true);
+          } catch {}
+          handleScanRef.current?.(code);
+        },
+        () => {}
+      );
+
+      if (scannerSessionRef.current !== sessionId) {
+        try {
+          await scanner.stop();
+        } catch {}
+        try {
+          await scanner.clear();
+        } catch {}
+        return;
+      }
+
+      setScannerReady(true);
+    } catch {
+      if (scannerRef.current === scanner) {
+        scannerRef.current = null;
+      }
+      try {
+        await scanner.clear();
+      } catch {}
+      setScannerError("Kamera belakang tidak tersedia. Gunakan Ketik Kode.");
+    }
   }, []);
 
   useEffect(() => {
@@ -102,13 +149,11 @@ const CashierMode = () => {
       initScanner();
     }
     return () => {
-      if (scannerRef.current) {
-        scannerRef.current.clear().catch(() => {});
-      }
+      stopScanner();
     };
-  }, [mode, initScanner]);
+  }, [initScanner, mode, stopScanner]);
 
-  const handleScan = async (code) => {
+  const handleScan = useCallback(async (code) => {
     if (busyRef.current) return;
     busyRef.current = true;
     
@@ -145,9 +190,21 @@ const CashierMode = () => {
       setLoading(false);
       busyRef.current = false;
     }
-  };
+  }, [fetchHistory, playError, playSuccess]);
 
   handleScanRef.current = handleScan;
+
+  const quickScanCode = getVoucherCode(searchParams.get("scan"));
+
+  useEffect(() => {
+    if (!quickScanCode || quickScanRef.current === quickScanCode) return;
+    quickScanRef.current = quickScanCode;
+    setMode("scan");
+    handleScan(quickScanCode);
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.delete("scan");
+    setSearchParams(nextParams, { replace: true });
+  }, [handleScan, quickScanCode, searchParams, setSearchParams]);
 
   const handleManualSubmit = (e) => {
     e.preventDefault();
@@ -163,7 +220,9 @@ const CashierMode = () => {
     setManualCode("");
     lastScanRef.current = { code: "", at: 0 };
     if (mode === "scan" && scannerRef.current) {
-      try { scannerRef.current.resume(); } catch {}
+      try {
+        scannerRef.current.resume();
+      } catch {}
     }
   };
 
@@ -206,7 +265,7 @@ const CashierMode = () => {
           </Button>
           <div className="flex items-center gap-2">
             <Store className="w-5 h-5" />
-            <span className="font-bold">VoucherKu</span>
+            <span className="font-bold">Voucher88</span>
           </div>
           <Button
             variant="ghost"
@@ -266,9 +325,6 @@ const CashierMode = () => {
             onClick={() => {
               setMode("manual");
               setResult(null);
-              if (scannerRef.current) {
-                scannerRef.current.clear().catch(() => {});
-              }
             }}
             data-testid="btn-mode-manual"
           >
@@ -334,26 +390,53 @@ const CashierMode = () => {
         {/* Scanner / Manual Input */}
         {mode === "scan" && (
           <div className={`space-y-4 ${result ? "hidden" : ""}`}>
-                <Card className="overflow-hidden">
-                  <CardContent className="p-0">
-                    <div 
-                      id="qr-reader" 
-                      className="w-full"
-                      data-testid="qr-scanner"
-                    />
-                  </CardContent>
-                </Card>
-                
-                {loading && (
-                  <div className="flex items-center justify-center py-4">
-                    <Loader2 className="w-6 h-6 animate-spin text-emerald-600 mr-2" />
-                    <span className="text-muted-foreground">Memverifikasi...</span>
-                  </div>
-                )}
-                
-                <p className="text-center text-sm text-muted-foreground">
-                  Arahkan kamera ke kode QR pada voucher
-                </p>
+            <Card className="overflow-hidden border-2 border-emerald-700">
+              <CardContent className="p-0">
+                <div
+                  id="qr-reader"
+                  className="cashier-scanner-frame"
+                  data-testid="qr-scanner"
+                />
+              </CardContent>
+            </Card>
+
+            {!scannerReady && !scannerError && (
+              <div
+                className="flex items-center justify-center gap-2 py-2 text-sm font-bold"
+                data-testid="scanner-starting"
+              >
+                <Loader2 className="w-5 h-5 animate-spin text-emerald-600" />
+                Menyiapkan kamera belakang...
+              </div>
+            )}
+
+            {scannerError && (
+              <div
+                className="border border-amber-400 bg-amber-50 p-4 text-center text-sm font-bold"
+                data-testid="scanner-camera-error"
+              >
+                <p>{scannerError}</p>
+                <Button
+                  variant="outline"
+                  className="mt-3"
+                  onClick={() => initScanner()}
+                  data-testid="btn-retry-back-camera"
+                >
+                  Coba Kamera Belakang Lagi
+                </Button>
+              </div>
+            )}
+
+            {loading && (
+              <div className="flex items-center justify-center py-4">
+                <Loader2 className="w-6 h-6 animate-spin text-emerald-600 mr-2" />
+                <span className="text-muted-foreground">Memverifikasi...</span>
+              </div>
+            )}
+
+            <p className="text-center text-sm text-muted-foreground">
+              Arahkan kamera belakang ke kode QR pada voucher
+            </p>
           </div>
         )}
         {mode === "manual" && !result && (
