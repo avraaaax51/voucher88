@@ -236,6 +236,7 @@ class StoreSettings(BaseModel):
     print_scale: int = 100
     print_feed_mm: int = 6
     print_page_height_mm: int = 150
+    print_qr_mm: int = 46
     print_method: str = "browser"
     print_agent_url: str = "http://localhost:9100"
     print_printer_name: str = ""
@@ -287,18 +288,21 @@ def generate_voucher_code(sequence: int, prefix: str = "") -> str:
     return f"{prefix}{random_part}{sequence_part}"
 
 # Generate QR Code as base64
+# QR generator version marker so vouchers created with older settings are auto-upgraded
+QR_GEN_VERSION = "v2"
+
 def generate_qr_base64(data: str) -> str:
     qr = qrcode.QRCode(
         version=None,
-        error_correction=qrcode.constants.ERROR_CORRECT_M,
-        box_size=12,
+        error_correction=qrcode.constants.ERROR_CORRECT_L,
+        box_size=20,
         border=4,
     )
     qr.add_data(data)
     qr.make(fit=True)
-    img = qr.make_image(fill_color="black", back_color="white")
+    img = qr.make_image(fill_color="black", back_color="white").convert("1")
     buffer = io.BytesIO()
-    img.save(buffer, format="PNG")
+    img.save(buffer, format="PNG", optimize=True)
     buffer.seek(0)
     return base64.b64encode(buffer.getvalue()).decode()
 
@@ -314,16 +318,21 @@ def build_voucher_scan_url(request: Request, code: str) -> str:
 
 async def refresh_voucher_qr(voucher: dict, request: Request) -> None:
     scan_url = build_voucher_scan_url(request, voucher["code"])
-    if voucher.get("scan_url") == scan_url:
+    needs_regen = (
+        voucher.get("scan_url") != scan_url
+        or voucher.get("qr_gen") != QR_GEN_VERSION
+    )
+    if not needs_regen:
         return
 
     qr_code = generate_qr_base64(scan_url)
     await db.vouchers.update_one(
         {"_id": voucher["_id"]},
-        {"$set": {"scan_url": scan_url, "qr_code": qr_code}},
+        {"$set": {"scan_url": scan_url, "qr_code": qr_code, "qr_gen": QR_GEN_VERSION}},
     )
     voucher["scan_url"] = scan_url
     voucher["qr_code"] = qr_code
+    voucher["qr_gen"] = QR_GEN_VERSION
 
 
 async def record_login_activity(user: dict) -> None:
@@ -727,6 +736,7 @@ async def create_vouchers(
             "terms": data.terms,
             "qr_code": qr_base64,
             "scan_url": scan_url,
+            "qr_gen": QR_GEN_VERSION,
             "status": "draft",
             "printed": False,
             "printed_at": None,
@@ -1024,6 +1034,8 @@ async def update_settings(data: StoreSettings, admin: dict = Depends(require_rol
         raise HTTPException(status_code=400, detail="Tinggi halaman harus 0 (otomatis) atau 60-400mm")
     if not -20 <= data.print_offset_mm <= 20 or not 50 <= data.print_scale <= 150 or not 0 <= data.print_feed_mm <= 40:
         raise HTTPException(status_code=400, detail="Nilai geser (-20..20mm), skala (50-150%) atau feed (0-40mm) tidak valid")
+    if not 30 <= data.print_qr_mm <= 80:
+        raise HTTPException(status_code=400, detail="Ukuran QR harus 30-80mm")
     payload = data.model_dump()
     await db.settings.update_one({"_id": "store"}, {"$set": payload}, upsert=True)
     return payload

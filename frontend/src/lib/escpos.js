@@ -106,7 +106,7 @@ export const renderVoucherCanvas = async (voucher, settings = {}) => {
   y += 130;
 
   // QR
-  const qrSize = 320;
+  const qrSize = Math.round(Number(s.print_qr_mm) * PX_PER_MM);
   if (voucher.qr_code) {
     try {
       const img = await loadImage(`data:image/png;base64,${voucher.qr_code}`);

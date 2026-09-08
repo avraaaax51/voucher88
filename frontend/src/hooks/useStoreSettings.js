@@ -15,6 +15,7 @@ export const DEFAULT_SETTINGS = {
   print_scale: 100,
   print_feed_mm: 6,
   print_page_height_mm: 150,
+  print_qr_mm: 46,
   print_method: "browser",
   print_agent_url: "http://localhost:9100",
   print_printer_name: "",

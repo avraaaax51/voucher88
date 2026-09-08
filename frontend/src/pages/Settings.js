@@ -62,6 +62,7 @@ const Settings = () => {
     print_scale: parseInt(f.print_scale, 10),
     print_feed_mm: parseInt(f.print_feed_mm, 10),
     print_page_height_mm: parseInt(f.print_page_height_mm, 10) || 0,
+    print_qr_mm: parseInt(f.print_qr_mm, 10),
   });
   const handleTestPrint = async () => {
     if (form.print_method === "agent") {
@@ -99,7 +100,7 @@ const Settings = () => {
     renderVoucherCanvas(previewVoucher, printPayload(form)).then((c) => alive && setRasterPreview(c.toDataURL()));
     return () => { alive = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [form.print_method, form.print_width_mm, form.print_scale, form.print_feed_mm, form.store_name, form.store_prefix, form.store_branch, form.promo_line1, form.promo_line2]);
+  }, [form.print_method, form.print_width_mm, form.print_scale, form.print_feed_mm, form.print_qr_mm, form.store_name, form.store_prefix, form.store_branch, form.promo_line1, form.promo_line2]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -279,6 +280,11 @@ const Settings = () => {
                   <Label>Tinggi halaman per voucher (mm)</Label>
                   {num("print_page_height_mm", { min: 0, max: 400 })}
                   <p className="text-xs text-muted-foreground">Wajib diisi agar auto cut per voucher (mis. 150). 0 = panjang otomatis (sering tidak memotong)</p>
+                </div>
+                <div className="space-y-2">
+                  <Label>Ukuran QR cetak (mm)</Label>
+                  {num("print_qr_mm", { min: 30, max: 80 })}
+                  <p className="text-xs text-muted-foreground">Perbesar (mis. 55-65mm) agar kamera lebih cepat fokus & scan</p>
                 </div>
                 <div className="space-y-2 flex flex-col justify-end">
                   <Button type="button" variant="outline" onClick={handleTestPrint} disabled={testing} data-testid="btn-test-print">
