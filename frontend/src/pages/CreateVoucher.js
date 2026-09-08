@@ -163,23 +163,6 @@ const CreateVoucher = () => {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="owner_name">Nama Pemilik Voucher</Label>
-                  <Input
-                    id="owner_name"
-                    name="owner_name"
-                    placeholder="Contoh: Budi Santoso"
-                    value={formData.owner_name}
-                    onChange={handleChange}
-                    required
-                    maxLength={100}
-                    data-testid="input-voucher-owner-name"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Nama hanya dicatat untuk laporan dan tidak akan tercetak pada voucher.
-                  </p>
-                </div>
-
-                <div className="space-y-2">
                   <Label htmlFor="terms">Syarat & Ketentuan (Opsional)</Label>
                   <Textarea
                     id="terms"
@@ -239,6 +222,22 @@ const CreateVoucher = () => {
                       <span className="font-mono">{(formData.prefix || "") + "X".repeat(7 - (formData.prefix || "").length)}001</span>
                     </p>
                   </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="owner_name">Nama Pemilik Voucher (Opsional)</Label>
+                  <Input
+                    id="owner_name"
+                    name="owner_name"
+                    placeholder="Contoh: Budi Santoso"
+                    value={formData.owner_name}
+                    onChange={handleChange}
+                    maxLength={100}
+                    data-testid="input-voucher-owner-name"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Nama hanya dicatat untuk laporan dan tidak akan tercetak pada voucher.
+                  </p>
                 </div>
 
                 <div className="flex justify-end gap-3 pt-4">

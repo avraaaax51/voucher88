@@ -108,10 +108,17 @@ const CashierMode = () => {
       await scanner.start(
         { facingMode: { exact: "environment" } },
         {
-          fps: 10,
-          qrbox: { width: 280, height: 280 },
+          fps: 25,
+          qrbox: { width: 260, height: 260 },
           aspectRatio: 1,
           disableFlip: true,
+          videoConstraints: {
+            facingMode: { exact: "environment" },
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+            frameRate: { ideal: 30 },
+            focusMode: "continuous",
+          },
         },
         (decodedText) => {
           const code = getVoucherCode(decodedText);
