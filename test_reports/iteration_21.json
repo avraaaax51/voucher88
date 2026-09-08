@@ -1,0 +1,29 @@
+{
+  "summary": "Iteration 21 — owner_name field + Unduh Gambar PNG verified end-to-end. Backend pytest 6/6 PASS (test_iteration21_owner_name.py): (1) POST /api/vouchers with owner_name persists it and GET /api/vouchers/{id} returns it (no $oid leak, _id is str); (2) POST /api/vouchers omitting owner_name is backward compatible (defaults to ''); (3) mark-printed → redeem snapshots owner_name into redemption_logs, GET /api/reports/daily returns redemptions[].owner_name with no ObjectId leak and no _id fields; (4) legacy redemption_logs docs lacking owner_name (inserted directly via pymongo) render as '-' in the report; (5) date filter with 1990 window returns empty report/redemptions arrays. Playwright frontend smoke on desktop 1280×900 + mobile 390×844: logged in as OwnerReportTest1788836239/654321, created a TUI-prefixed voucher with owner_name='Rahasia Owner' via authenticated fetch, verified: card at data-testid=voucher-card-<code> does NOT contain 'Rahasia Owner'; btn-download-<code> exists and fires a browser download whose suggested filename is exactly voucher-<code>.png; detail modal opened via btn-view-<code> does NOT contain owner_name; btn-detail-download-<code> also produces voucher-<code>.png; mark-printed + redeem via fetch returned 200; /admin/reports body text contains the owner name and data-testid=redemption-details-table is present; mobile /admin/vouchers loads without error. Created voucher cleaned up via DELETE 200. No pageerror observed.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_iteration21_owner_name.py",
+    "/app/test_reports/pytest/iter21.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "backend/server.py VoucherCreate: owner_name default '' + max_length=100 preserves backward compatibility while accepting new field. Good.",
+    "POST /api/vouchers stores voucher['owner_name'] = data.owner_name.strip(); voucher dict is inserted then returned with _id stringified — no ObjectId leak. Good.",
+    "POST /api/vouchers/redeem snapshots owner_name into redemption_logs via result.get('owner_name',''), so redemption history is preserved even if the voucher (or its owner_name field) is later mutated/deleted. Good design.",
+    "GET /api/reports/daily projects {_id:0} for redemptions and coalesces missing owner_name to '-' via redemption.get('owner_name') or '-'. Legacy rows without the field render safely as '-' — verified.",
+    "frontend/src/pages/VoucherManagement.js renderVoucherCanvas(voucher, settings) is called from handleDownloadImage without ever touching voucher.owner_name; escpos.js renderVoucherCanvas has no reference to owner_name; PrintVoucher.js has no reference. Owner name cannot appear in either the PNG download path or the printable ESC/POS output. Verified by source inspection + UI leak check.",
+    "CreateVoucher.js marks Nama Pemilik Voucher input as required — this is intentional per PRD (owner name always required), but if backward-compat clients hit the API directly it still works (backend accepts empty).",
+    "Reports.js Detail Penukaran table + CSV export both include owner_name (falling back to '-'). data-testid=redemption-detail-owner-<i> present for scripted verification. Good.",
+    "Style/repeat comment: server.py still >1100 lines — refactor into routers/{auth,users,vouchers,reports,settings}.py + services/{email,qr}.py for maintainability (repeat from iter20, not blocking).",
+    "Nit: VoucherCreate model does not trim whitespace at Pydantic validation level; the endpoint calls .strip() manually. A field_validator would move the invariant closer to the schema."
+  ],
+  "updated_files": ["/app/backend/tests/test_iteration21_owner_name.py"],
+  "success_rate": {"backend": "100% (6/6)", "frontend": "100% smoke passed"},
+  "test_credentials": "Super Admin (temporary, do not delete during this run): OwnerReportTest1788836239 / 654321. Main-agent's original test voucher OWNF7DI071 is still present in DB (already redeemed) and will be cleaned by main agent.",
+  "seed_data_creation": "Ephemeral pytest data: TON-/TOB-/TOE-/TOR- prefixed vouchers + one legacy redemption_logs doc for TESTLEGACY00 — all deleted at fixture teardown. Playwright: one TUI-prefixed voucher created, redeemed, and deleted via API within the run.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Regression file /app/backend/tests/test_iteration21_owner_name.py logs in as OwnerReportTest1788836239/654321 and self-cleans TON/TOB/TOE/TOR vouchers via bulk-delete. It also inserts + removes one synthetic legacy redemption_log using dotenv_values('/app/backend/.env') to reach MongoDB directly — this proves the '-' fallback for legacy rows without owner_name. Frontend contract: btn-download-<code> and btn-detail-download-<code> both trigger canvas→blob→download; suggested filename is `voucher-<code>.png`. If pytest.ini enables xdist, pass `-o addopts=` to disable it (module-scoped fixtures).",
+  "rca of the issue": "N/A — this iteration is a feature verification, not a bug fix. All 6 review-request invariants pass: (1) API accepts+persists owner_name with backward compat, (2) owner_name absent from card/detail-modal/PrintVoucher/renderVoucherCanvas, (3) redemption_logs snapshots owner_name and reports/daily returns it without ObjectId leak, (4) Reports Detail Penukaran + CSV Export include owner name and respect date filter, (5) Download Image buttons produce voucher-<code>.png on desktop+mobile, (6) legacy redemption rows render as '-'."
+}

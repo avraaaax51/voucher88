@@ -38,6 +38,7 @@ const Reports = () => {
   const [stats, setStats] = useState(null);
   const [dailyReport, setDailyReport] = useState([]);
   const [byCashier, setByCashier] = useState([]);
+  const [redemptions, setRedemptions] = useState([]);
   const [dateRange, setDateRange] = useState({
     start_date: "",
     end_date: "",
@@ -71,6 +72,7 @@ const Reports = () => {
       const data = await response.json();
       setDailyReport(data.report || []);
       setByCashier(data.by_cashier || []);
+      setRedemptions(data.redemptions || []);
     } catch (err) {
       toast.error(err.message);
     } finally {
@@ -130,6 +132,16 @@ const Reports = () => {
       ["Laporan Per Kasir"],
       ["Kasir", "Jumlah Voucher", "Total Nominal (Rp)"],
       ...byCashier.map((c) => [c.name, c.count, c.total_nominal]),
+      [],
+      ["Detail Penukaran"],
+      ["Waktu", "Kode Voucher", "Nama Pemilik Voucher", "Nominal (Rp)", "Kasir"],
+      ...redemptions.map((redemption) => [
+        new Date(redemption.redeemed_at).toLocaleString("id-ID"),
+        redemption.voucher_code,
+        redemption.owner_name || "-",
+        redemption.nominal,
+        redemption.redeemed_by_name,
+      ]),
     ]
       .map((row) => row.map(esc).join(";"))
       .join("\r\n");
@@ -393,38 +405,53 @@ const Reports = () => {
           </CardContent>
         </Card>
 
-        {/* Recent Redemptions */}
-        {stats?.recent_redemptions && stats.recent_redemptions.length > 0 && (
-          <Card className="border">
+        {/* Redemption Details */}
+        {redemptions.length > 0 && (
+          <Card className="border" data-testid="redemption-details-card">
             <CardHeader>
-              <CardTitle>Redemption Terbaru</CardTitle>
+              <CardTitle>Detail Penukaran</CardTitle>
               <CardDescription>
-                10 transaksi redemption terakhir
+                Nama pemilik tercatat pada laporan dan tidak ditampilkan di voucher.
               </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="overflow-x-auto">
-                <Table>
+                <Table data-testid="redemption-details-table">
                   <TableHeader>
                     <TableRow>
                       <TableHead>Kode Voucher</TableHead>
+                      <TableHead>Nama Pemilik</TableHead>
                       <TableHead>Nominal</TableHead>
                       <TableHead>Kasir</TableHead>
                       <TableHead>Waktu</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {stats.recent_redemptions.map((r) => (
-                      <TableRow key={r._id}>
-                        <TableCell className="font-mono font-medium">
-                          {r.voucher_code}
+                    {redemptions.map((redemption, index) => (
+                      <TableRow
+                        key={`${redemption.voucher_code}-${redemption.redeemed_at}`}
+                        data-testid={`redemption-detail-row-${index}`}
+                      >
+                        <TableCell
+                          className="font-mono font-medium"
+                          data-testid={`redemption-detail-code-${index}`}
+                        >
+                          {redemption.voucher_code}
+                        </TableCell>
+                        <TableCell data-testid={`redemption-detail-owner-${index}`}>
+                          {redemption.owner_name || "-"}
                         </TableCell>
                         <TableCell className="text-emerald-600 font-medium">
-                          {formatCurrency(r.nominal)}
+                          {formatCurrency(redemption.nominal)}
                         </TableCell>
-                        <TableCell>{r.redeemed_by_name}</TableCell>
-                        <TableCell className="text-muted-foreground">
-                          {new Date(r.redeemed_at).toLocaleString("id-ID")}
+                        <TableCell data-testid={`redemption-detail-cashier-${index}`}>
+                          {redemption.redeemed_by_name}
+                        </TableCell>
+                        <TableCell
+                          className="text-muted-foreground"
+                          data-testid={`redemption-detail-time-${index}`}
+                        >
+                          {new Date(redemption.redeemed_at).toLocaleString("id-ID")}
                         </TableCell>
                       </TableRow>
                     ))}

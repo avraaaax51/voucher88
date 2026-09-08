@@ -212,3 +212,12 @@ Semua fitur inti sudah diimplementasi dan diuji.
 - QR pada voucher lama diperbarui otomatis saat daftar atau detail voucher dibuka; cetak ulang
   voucher menggunakan QR 46mm yang tajam agar hasil fisik ikut memakai versi mudah dipindai.
 - Verifikasi: testing agent iteration_20 lulus (backend 7/7 dan smoke test ponsel).
+
+## Update 2026-09-08 — Pemilik Voucher + Unduh Gambar (iteration_21 PASS)
+- Form Buat Voucher sekarang mewajibkan Nama Pemilik Voucher. Nama disimpan privat pada data
+  voucher dan tidak dirender pada kartu voucher, modal detail, cetak thermal, atau PNG unduhan.
+- Kelola Voucher menyediakan Unduh Gambar pada kartu dan modal detail. Gambar PNG dibuat dari
+  renderer voucher yang sama dengan direct thermal print dan memakai nama file `voucher-<kode>.png`.
+- Saat redemption, nama pemilik disalin ke log agar tampil di Detail Penukaran serta Export CSV.
+  Data redemption lama yang belum punya nama pemilik tampil aman sebagai `-`.
+- Verifikasi: testing agent iteration_21 lulus (backend 6/6, unduhan PNG desktop, dan laporan mobile).

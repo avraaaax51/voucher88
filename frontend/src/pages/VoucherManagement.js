@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import axios from "axios";
 import AdminLayout from "../components/AdminLayout";
 import { PrintVoucher, PrintPortal } from "../components/PrintVoucher";
+import { renderVoucherCanvas } from "../lib/escpos";
 import { useStoreSettings, isExpiringSoon } from "../hooks/useStoreSettings";
 import { useAutoRefresh } from "../hooks/useAutoRefresh";
 import { printVouchersDirect } from "../lib/escpos";
@@ -37,6 +38,7 @@ import {
   ArrowDown,
   ArrowUpDown,
   Ticket,
+  Download,
 } from "lucide-react";
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
@@ -224,6 +226,30 @@ const VoucherManagement = () => {
     setShowDetailModal(true);
   };
 
+  const handleDownloadImage = async (voucher) => {
+    try {
+      const canvas = await renderVoucherCanvas(voucher, settings);
+      const imageBlob = await new Promise((resolve) => {
+        canvas.toBlob(resolve, "image/png");
+      });
+      if (!imageBlob) {
+        throw new Error("Gambar voucher tidak dapat dibuat");
+      }
+
+      const url = URL.createObjectURL(imageBlob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `voucher-${voucher.code}.png`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      toast.success(`Voucher ${voucher.code} berhasil diunduh`);
+    } catch (error) {
+      toast.error(error.message || "Gagal mengunduh gambar voucher");
+    }
+  };
+
   return (
     <AdminLayout>
       <div className="space-y-6">
@@ -379,8 +405,18 @@ const VoucherManagement = () => {
                         size="icon"
                         onClick={() => handlePrint(voucher)}
                         data-testid={`btn-print-${voucher.code}`}
+                        title="Cetak voucher"
                       >
                         <Printer className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleDownloadImage(voucher)}
+                        data-testid={`btn-download-${voucher.code}`}
+                        title="Unduh gambar voucher"
+                      >
+                        <Download className="w-4 h-4" />
                       </Button>
                       <Button
                         variant="ghost"
@@ -488,9 +524,19 @@ const VoucherManagement = () => {
                 <Button
                   className="w-full"
                   onClick={() => handlePrint(selectedVoucher)}
+                  data-testid={`btn-detail-print-${selectedVoucher.code}`}
                 >
                   <Printer className="w-4 h-4 mr-2" />
                   Cetak Voucher
+                </Button>
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => handleDownloadImage(selectedVoucher)}
+                  data-testid={`btn-detail-download-${selectedVoucher.code}`}
+                >
+                  <Download className="w-4 h-4 mr-2" />
+                  Unduh Gambar
                 </Button>
               </div>
             )}

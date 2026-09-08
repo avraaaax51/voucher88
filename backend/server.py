@@ -216,6 +216,7 @@ def validate_numeric_password(pw: str):
 
 class VoucherCreate(BaseModel):
     title: str
+    owner_name: str = Field(default="", max_length=100)
     nominal: int
     terms: str = ""
     expires_at: str
@@ -721,6 +722,7 @@ async def create_vouchers(
         voucher = {
             "code": code,
             "title": data.title,
+            "owner_name": data.owner_name.strip(),
             "nominal": data.nominal,
             "terms": data.terms,
             "qr_code": qr_base64,
@@ -903,6 +905,7 @@ async def redeem_voucher(data: VoucherRedeem, request: Request, user: dict = Dep
     await db.redemption_logs.insert_one({
         "voucher_id": str(result["_id"]),
         "voucher_code": code,
+        "owner_name": result.get("owner_name", ""),
         "nominal": result["nominal"],
         "redeemed_by": user["_id"],
         "redeemed_by_name": user["name"],
@@ -1084,6 +1087,10 @@ async def get_daily_report(
         {"$sort": {"count": -1, "total_nominal": -1}},
     ]
     by_cashier = await db.redemption_logs.aggregate(cashier_pipeline).to_list(100)
+    redemptions = await db.redemption_logs.find(
+        {"redeemed_at": {"$gte": start, "$lte": end}},
+        {"_id": 0},
+    ).sort("redeemed_at", -1).limit(500).to_list(500)
     
     return {
         "report": [{"date": r["_id"], "count": r["count"], "total_nominal": r["total_nominal"]} for r in result],
@@ -1094,6 +1101,17 @@ async def get_daily_report(
             "total_nominal": c["total_nominal"],
             "last_redeemed_at": c["last_redeemed_at"].isoformat() if isinstance(c["last_redeemed_at"], datetime) else c["last_redeemed_at"],
         } for c in by_cashier],
+        "redemptions": [{
+            "voucher_code": redemption["voucher_code"],
+            "owner_name": redemption.get("owner_name") or "-",
+            "nominal": redemption["nominal"],
+            "redeemed_by_name": redemption.get("redeemed_by_name") or "-",
+            "redeemed_at": (
+                redemption["redeemed_at"].isoformat()
+                if isinstance(redemption["redeemed_at"], datetime)
+                else redemption["redeemed_at"]
+            ),
+        } for redemption in redemptions],
         "start_date": start.isoformat(),
         "end_date": end.isoformat()
     }

@@ -21,6 +21,7 @@ const CreateVoucher = () => {
   const [createdVouchers, setCreatedVouchers] = useState([]);
   const [formData, setFormData] = useState({
     title: "",
+    owner_name: "",
     nominal: "",
     terms: "",
     expires_at: "",
@@ -162,6 +163,23 @@ const CreateVoucher = () => {
                 </div>
 
                 <div className="space-y-2">
+                  <Label htmlFor="owner_name">Nama Pemilik Voucher</Label>
+                  <Input
+                    id="owner_name"
+                    name="owner_name"
+                    placeholder="Contoh: Budi Santoso"
+                    value={formData.owner_name}
+                    onChange={handleChange}
+                    required
+                    maxLength={100}
+                    data-testid="input-voucher-owner-name"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Nama hanya dicatat untuk laporan dan tidak akan tercetak pada voucher.
+                  </p>
+                </div>
+
+                <div className="space-y-2">
                   <Label htmlFor="terms">Syarat & Ketentuan (Opsional)</Label>
                   <Textarea
                     id="terms"
@@ -275,6 +293,7 @@ const CreateVoucher = () => {
                         setCreatedVouchers([]);
                         setFormData({
                           title: "",
+                          owner_name: "",
                           nominal: "",
                           terms: "",
                           expires_at: "",
