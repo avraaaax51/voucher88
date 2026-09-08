@@ -124,10 +124,14 @@ const VoucherManagement = () => {
   };
 
   const filteredVouchers = vouchers
-    .filter((v) =>
-      v.code.toLowerCase().includes(search.toLowerCase()) ||
-      v.title.toLowerCase().includes(search.toLowerCase())
-    )
+    .filter((v) => {
+      const q = search.toLowerCase();
+      return (
+        v.code.toLowerCase().includes(q) ||
+        v.title.toLowerCase().includes(q) ||
+        (v.owner_name || "").toLowerCase().includes(q)
+      );
+    })
     .sort((a, b) => {
       const x = sortValue(a, sort.key), y = sortValue(b, sort.key);
       const cmp = x < y ? -1 : x > y ? 1 : 0;
@@ -274,7 +278,7 @@ const VoucherManagement = () => {
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
-              placeholder="Cari kode atau judul voucher..."
+              placeholder="Cari kode, judul, atau nama pemilik..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="pl-10 h-11"

@@ -39,6 +39,7 @@ const Reports = () => {
   const [dailyReport, setDailyReport] = useState([]);
   const [byCashier, setByCashier] = useState([]);
   const [redemptions, setRedemptions] = useState([]);
+  const [ownerSearch, setOwnerSearch] = useState("");
   const [dateRange, setDateRange] = useState({
     start_date: "",
     end_date: "",
@@ -107,6 +108,15 @@ const Reports = () => {
     });
   };
 
+  const filteredRedemptions = redemptions.filter((r) => {
+    const q = ownerSearch.trim().toLowerCase();
+    if (!q) return true;
+    return (
+      (r.owner_name || "").toLowerCase().includes(q) ||
+      (r.voucher_code || "").toLowerCase().includes(q)
+    );
+  });
+
   const exportCSV = () => {
     if (dailyReport.length === 0) {
       toast.error("Tidak ada data untuk diekspor");
@@ -135,7 +145,7 @@ const Reports = () => {
       [],
       ["Detail Penukaran"],
       ["Waktu", "Kode Voucher", "Nama Pemilik Voucher", "Nominal (Rp)", "Kasir"],
-      ...redemptions.map((redemption) => [
+      ...filteredRedemptions.map((redemption) => [
         new Date(redemption.redeemed_at).toLocaleString("id-ID"),
         redemption.voucher_code,
         redemption.owner_name || "-",
@@ -415,6 +425,20 @@ const Reports = () => {
               </CardDescription>
             </CardHeader>
             <CardContent>
+              <div className="mb-4">
+                <Input
+                  placeholder="Cari nama pemilik atau kode voucher..."
+                  value={ownerSearch}
+                  onChange={(e) => setOwnerSearch(e.target.value)}
+                  className="h-11 max-w-md"
+                  data-testid="input-search-owner"
+                />
+                {ownerSearch && (
+                  <p className="text-xs text-muted-foreground mt-2" data-testid="search-owner-summary">
+                    {filteredRedemptions.length} dari {redemptions.length} penukaran cocok
+                  </p>
+                )}
+              </div>
               <div className="overflow-x-auto">
                 <Table data-testid="redemption-details-table">
                   <TableHeader>
@@ -427,7 +451,13 @@ const Reports = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {redemptions.map((redemption, index) => (
+                    {filteredRedemptions.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={5} className="text-center text-muted-foreground py-6" data-testid="redemption-detail-empty">
+                          Tidak ada penukaran yang cocok
+                        </TableCell>
+                      </TableRow>
+                    ) : filteredRedemptions.map((redemption, index) => (
                       <TableRow
                         key={`${redemption.voucher_code}-${redemption.redeemed_at}`}
                         data-testid={`redemption-detail-row-${index}`}
