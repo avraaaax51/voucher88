@@ -720,7 +720,12 @@ async def create_vouchers(
     )
     start_seq = counter.get("seq", data.quantity) - data.quantity + 1
     
-    expires_at = datetime.fromisoformat(data.expires_at.replace("Z", "+00:00"))
+    if not data.expires_at or not data.expires_at.strip():
+        raise HTTPException(status_code=400, detail="Tanggal kadaluarsa wajib diisi")
+    try:
+        expires_at = datetime.fromisoformat(data.expires_at.replace("Z", "+00:00"))
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Format tanggal kadaluarsa tidak valid")
     
     vouchers = []
     for i in range(data.quantity):
