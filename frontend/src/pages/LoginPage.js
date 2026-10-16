@@ -165,7 +165,7 @@ const LoginPage = () => {
 
         {/* Footer text */}
         <p className="text-center text-xs text-gray-500 mt-6 font-medium">
-          Voucher88 v1.0
+          Voucher88 v1.1
         </p>
       </div>
     </div>
