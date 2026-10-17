@@ -77,6 +77,10 @@ Frontend: `cd frontend && yarn install --frozen-lockfile && CI=false REACT_APP_B
 Bila `assets.emergent.sh` tidak bisa diakses, build di salinan sementara tanpa
 devDependency `@emergentbase/visual-edits` (jangan commit perubahan itu).
 
+Skrip sinkron: `shellcheck -S warning scripts/*.sh scripts/tests/*.sh` (bisa via
+`pip install shellcheck-py`) dan `bash scripts/tests/test_emergent_sync.sh`.
+Setiap perubahan `emergent_sync.sh` wajib disertai tes di file itu.
+
 Tambahkan/ubah tes di `backend/tests/ci/` untuk setiap perubahan perilaku backend.
 
 ## Laporan setiap fitur (wajib)

@@ -53,6 +53,19 @@ jobs:
           CI_DB_NAME: ci_test_voucher88
         run: pytest -c backend/tests/ci/pytest.ini backend/tests/ci -v
 
+  scripts:
+    name: Skrip sinkron Emergent (tes)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: ShellCheck
+        run: shellcheck -S warning scripts/*.sh scripts/tests/*.sh
+
+      - name: Tes emergent_sync.sh (repo git tiruan, tanpa jaringan luar)
+        run: bash scripts/tests/test_emergent_sync.sh
+
   frontend:
     name: Frontend (build produksi)
     runs-on: ubuntu-latest
