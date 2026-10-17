@@ -18,8 +18,9 @@ COPY static ./static
 RUN useradd --create-home --uid 10001 app
 USER app
 
-# Railway mengisi PORT. HOST "::" agar bisa diakses lewat jaringan privat
-# Railway (IPv6) sekaligus IPv4.
-ENV HOST="::" PORT=8001
+# Railway mengisi PORT. HOST kosong = dengarkan di semua alamat IPv4 DAN IPv6
+# (jaringan privat Railway bisa memakai keduanya); bila IPv6 tidak tersedia,
+# otomatis hanya IPv4. "::" saja akan menolak koneksi IPv4.
+ENV HOST="" PORT=8001
 EXPOSE 8001
 CMD ["sh", "-c", "exec uvicorn server:app --host \"$HOST\" --port \"$PORT\" --proxy-headers --forwarded-allow-ips='*'"]
