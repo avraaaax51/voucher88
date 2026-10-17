@@ -1,0 +1,100 @@
+name: CI
+
+# Pengujian otomatis setiap Pull Request ke main dan setiap perubahan di main.
+# Terisolasi penuh: memakai MongoDB sementara milik GitHub Actions, nilai env palsu,
+# dan tidak memakai secret apa pun. Tidak melakukan deployment.
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend (tes API terisolasi)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      mongo:
+        image: mongo:7
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd "mongosh --quiet --eval 'db.runCommand({ping:1})'"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install paket Python (versi sama dengan requirements.txt)
+        run: |
+          bash scripts/ci_backend_requirements.sh > /tmp/req-ci.txt
+          cat /tmp/req-ci.txt
+          pip install -r /tmp/req-ci.txt
+
+      - name: Cek sintaks Python
+        run: python -m py_compile backend/server.py backend/static/voucher_print_agent.py
+
+      - name: Tes API (MongoDB sementara)
+        env:
+          CI_MONGO_URL: mongodb://127.0.0.1:27017
+          CI_DB_NAME: ci_test_voucher88
+        run: pytest -c backend/tests/ci/pytest.ini backend/tests/ci -v
+
+  scripts:
+    name: Skrip sinkron Emergent (tes)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: ShellCheck
+        run: shellcheck -S warning scripts/*.sh scripts/tests/*.sh
+
+      - name: Tes emergent_sync.sh (repo git tiruan, tanpa jaringan luar)
+        run: bash scripts/tests/test_emergent_sync.sh
+
+  frontend:
+    name: Frontend (build produksi)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install paket frontend
+        run: |
+          if yarn install --frozen-lockfile --non-interactive --network-timeout 120000; then
+            echo "yarn install sesuai yarn.lock berhasil"
+          else
+            # Paket dev @emergentbase/visual-edits diunduh dari server Emergent dan hanya
+            # dipakai mode dev. Bila server itu tidak bisa diakses dari GitHub, paket itu
+            # dilepas HANYA di salinan CI ini (tidak di-commit) lalu install diulang.
+            echo "::warning::Install sesuai lockfile gagal; mencoba tanpa @emergentbase/visual-edits (khusus CI)"
+            node -e 'const f="package.json",p=require("./"+f);delete p.devDependencies["@emergentbase/visual-edits"];require("fs").writeFileSync(f,JSON.stringify(p,null,2))'
+            yarn install --non-interactive --network-timeout 120000
+          fi
+
+      - name: Build produksi
+        env:
+          CI: "false"
+          REACT_APP_BACKEND_URL: https://ci.example.invalid
+        run: yarn build
