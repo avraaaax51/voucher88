@@ -98,3 +98,47 @@ jobs:
           CI: "false"
           REACT_APP_BACKEND_URL: https://ci.example.invalid
         run: yarn build
+
+  railway-docker:
+    name: Railway (Docker end-to-end)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build image backend (sama seperti Railway)
+        run: docker build -t v88-backend backend
+
+      - name: Build image frontend (sama seperti Railway)
+        run: docker build -t v88-frontend frontend
+
+      - name: Jalankan MongoDB uji sementara, backend, frontend
+        # Semua nilai di sini palsu/khusus CI. Database dibuang bersama runner.
+        run: |
+          docker network create v88
+          docker run -d --name mongo --network v88 mongo:7
+          docker run -d --name backend --network v88 \
+            -e MONGO_URL=mongodb://mongo:27017 -e DB_NAME=ci_test_e2e \
+            -e JWT_SECRET=ci-only-jwt-secret -e ADMIN_PASSWORD=135790 \
+            -e EMAIL_PROVIDER=disabled -e CORS_ORIGINS=https://staging.example.invalid \
+            v88-backend
+          docker run -d --name frontend --network v88 -p 8080:8080 \
+            -e BACKEND_INTERNAL_URL=http://backend:8001 v88-frontend
+          for i in $(seq 1 60); do
+            curl -sf http://localhost:8080/api/ >/dev/null && exit 0
+            sleep 2
+          done
+          echo "Layanan tidak siap dalam 120 detik"; exit 1
+
+      - name: Smoke test (login lewat proxy, cookie, QR domain baru)
+        env:
+          SMOKE_ADMIN_PASSWORD: "135790"
+          SMOKE_HOST_HEADER: staging.example.invalid
+        run: bash scripts/railway_smoke_test.sh http://localhost:8080 --write
+
+      - name: Log container (bila gagal)
+        if: failure()
+        run: |
+          for c in backend frontend mongo; do
+            echo "===== $c"; docker logs "$c" 2>&1 | tail -n 60
+          done

@@ -23,7 +23,10 @@
         -->
         <title>Emergent | Fullstack App</title>
         <script>window.addEventListener("error",function(e){if(e.error instanceof DOMException&&e.error.name==="DataCloneError"&&e.message&&e.message.includes("PerformanceServerTiming")){e.stopImmediatePropagation();e.preventDefault()}},true);</script>
+        <!-- Skrip Emergent; dilewati bila REACT_APP_DISABLE_EMERGENT_SCRIPTS=true (build Railway). -->
+        <% if (process.env.REACT_APP_DISABLE_EMERGENT_SCRIPTS !== "true") { %>
         <script src="https://assets.emergent.sh/scripts/emergent-main.js"></script>
+        <% } %>
     </head>
     <body>
         <noscript>You need to enable JavaScript to run this app.</noscript>
@@ -39,6 +42,8 @@
       To begin the development, run `npm start` or `yarn start`.
       To create a production bundle, use `npm run build` or `yarn build`.
     -->
+        <!-- Skrip analitik Emergent; dilewati bila REACT_APP_DISABLE_EMERGENT_SCRIPTS=true (build Railway). -->
+        <% if (process.env.REACT_APP_DISABLE_EMERGENT_SCRIPTS !== "true") { %>
         <script>
             !(function (t, e) {
                 var o, n, p, r;
@@ -110,5 +115,6 @@
                 },
             });
         </script>
+        <% } %>
     </body>
 </html>

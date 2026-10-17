@@ -9,6 +9,9 @@ from fastapi.responses import FileResponse
 import ipaddress
 import re
 import httpx
+import asyncio
+import smtplib
+from email.message import EmailMessage
 from html import escape
 from html.parser import HTMLParser
 from urllib.parse import quote, urlparse
@@ -99,11 +102,21 @@ def require_role(allowed_roles: list):
     return role_checker
 
 
-# ==================== EMAIL (Emergent managed) ====================
+# ==================== EMAIL ====================
+# Penyedia dipilih lewat EMAIL_PROVIDER: emergent | resend | smtp | disabled.
+# Bila tidak diisi: "emergent" jika EMERGENT_EMAIL_KEY ada (perilaku lama di
+# Emergent), selain itu "disabled".
 EMAIL_BASE_URL = "https://integrations.emergentagent.com"
-EMAIL_KEY = os.environ["EMERGENT_EMAIL_KEY"]
-EMAIL_FROM_NAME = os.environ["EMAIL_FROM_NAME"]
-OWNER_EMAIL = os.environ["OWNER_EMAIL"]
+EMAIL_KEY = os.environ.get("EMERGENT_EMAIL_KEY", "")
+EMAIL_FROM_NAME = os.environ.get("EMAIL_FROM_NAME", "Voucher88")
+OWNER_EMAIL = os.environ.get("OWNER_EMAIL", "").strip()
+EMAIL_PROVIDER = (os.environ.get("EMAIL_PROVIDER") or ("emergent" if EMAIL_KEY else "disabled")).strip().lower()
+EMAIL_FROM_ADDRESS = os.environ.get("EMAIL_FROM_ADDRESS", "").strip()
+RESEND_API_KEY = os.environ.get("RESEND_API_KEY", "")
+SMTP_HOST = os.environ.get("SMTP_HOST", "")
+SMTP_PORT = int(os.environ.get("SMTP_PORT", "587"))
+SMTP_USERNAME = os.environ.get("SMTP_USERNAME", "")
+SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD", "")
 
 _SHORTENERS = ("bit.ly", "tinyurl.com", "t.co", "is.gd", "cutt.ly", "goo.gl", "rebrand.ly")
 _CRED_ASK = ("reply with your password", "reply with the code", "send your password", "cvv",
@@ -169,19 +182,65 @@ def _assert_safe_email(subject: str, html: str) -> None:
             if not _same_site(m.group(1).lower(), real):
                 raise ValueError(f"Anchor text {m.group(1)!r} != real link host {real!r} (G3)")
 
+def email_config_error() -> str | None:
+    """Alasan email belum bisa dikirim, atau None bila konfigurasi lengkap."""
+    if not OWNER_EMAIL or "@" not in OWNER_EMAIL:
+        return "OWNER_EMAIL belum diisi"
+    if EMAIL_PROVIDER == "emergent":
+        return None if EMAIL_KEY else "EMERGENT_EMAIL_KEY belum diisi"
+    if EMAIL_PROVIDER == "resend":
+        return None if RESEND_API_KEY and EMAIL_FROM_ADDRESS else "RESEND_API_KEY/EMAIL_FROM_ADDRESS belum diisi"
+    if EMAIL_PROVIDER == "smtp":
+        return None if SMTP_HOST and EMAIL_FROM_ADDRESS else "SMTP_HOST/EMAIL_FROM_ADDRESS belum diisi"
+    if EMAIL_PROVIDER == "disabled":
+        return "pengiriman email dinonaktifkan (EMAIL_PROVIDER=disabled)"
+    return f"EMAIL_PROVIDER tidak dikenal: {EMAIL_PROVIDER}"
+
+async def _email_http_post(url: str, headers: dict, payload: dict) -> dict:
+    async with httpx.AsyncClient(timeout=30) as client:
+        resp = await client.post(url, headers=headers, json=payload)
+    resp.raise_for_status()
+    return resp.json()
+
+def _smtp_send(message: EmailMessage) -> None:
+    if SMTP_PORT == 465:
+        smtp = smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT, timeout=30)
+    else:
+        smtp = smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=30)
+        smtp.starttls()
+    with smtp:
+        if SMTP_USERNAME:
+            smtp.login(SMTP_USERNAME, SMTP_PASSWORD)
+        smtp.send_message(message)
+
 async def send_email(*, to: str, subject: str, html: str) -> str | None:
     _assert_safe_email(subject, html)
-    payload = {"to": [to], "subject": subject, "html": html, "from_name": EMAIL_FROM_NAME}
+    problem = email_config_error()
+    if problem:
+        logging.error("Email tidak dikirim: %s", problem)
+        raise HTTPException(status_code=503, detail="Pengiriman email belum dikonfigurasi di server ini")
     try:
-        async with httpx.AsyncClient(timeout=30) as client:
-            resp = await client.post(f"{EMAIL_BASE_URL}/api/v1/email/send", headers={"X-Email-Key": EMAIL_KEY}, json=payload)
-        resp.raise_for_status()
-        return resp.json().get("id")
+        if EMAIL_PROVIDER == "emergent":
+            payload = {"to": [to], "subject": subject, "html": html, "from_name": EMAIL_FROM_NAME}
+            data = await _email_http_post(f"{EMAIL_BASE_URL}/api/v1/email/send", {"X-Email-Key": EMAIL_KEY}, payload)
+            return data.get("id")
+        if EMAIL_PROVIDER == "resend":
+            payload = {"from": f"{EMAIL_FROM_NAME} <{EMAIL_FROM_ADDRESS}>", "to": [to], "subject": subject, "html": html}
+            data = await _email_http_post("https://api.resend.com/emails", {"Authorization": f"Bearer {RESEND_API_KEY}"}, payload)
+            return data.get("id")
+        message = EmailMessage()
+        message["From"] = f"{EMAIL_FROM_NAME} <{EMAIL_FROM_ADDRESS}>"
+        message["To"] = to
+        message["Subject"] = subject
+        message.set_content("Buka email ini dengan aplikasi yang mendukung HTML.")
+        message.add_alternative(html, subtype="html")
+        await asyncio.to_thread(_smtp_send, message)
+        return None
     except httpx.HTTPStatusError as e:
-        logging.error(f"Email send failed: {e.response.status_code} {e.response.text}")
+        logging.error(f"Email send failed ({EMAIL_PROVIDER}): HTTP {e.response.status_code}")
         raise HTTPException(status_code=502, detail="Gagal mengirim email")
     except Exception as e:
-        logging.error(f"Email send error: {e}")
+        logging.error(f"Email send error ({EMAIL_PROVIDER}): {type(e).__name__}")
         raise HTTPException(status_code=500, detail="Gagal mengirim email")
 
 def reset_code_email_html(name: str, code: str) -> str:
@@ -536,6 +595,8 @@ async def forgot_password(data: ForgotPassword):
     identifier = f"forgot:{name_lower}"
     await _check_rate(identifier, max_attempts=3)
     await _bump_rate(identifier)
+    if email_config_error():
+        raise HTTPException(status_code=503, detail="Pengiriman email belum dikonfigurasi di server ini")
     user = await db.users.find_one({"name_lower": name_lower, "role": {"$in": ["admin", "superadmin"]}})
     masked = OWNER_EMAIL[:3] + "***" + OWNER_EMAIL[OWNER_EMAIL.index("@"):]
     if not user:
