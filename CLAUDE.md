@@ -7,8 +7,12 @@ dalam Bahasa Indonesia.
 
 ## Hosting & alur rilis (jangan diubah)
 
-- Hosting, database (MongoDB), dan domain dikelola **Emergent**. Tidak ada
-  migrasi hosting/database.
+- Produksi (hosting, database MongoDB, domain) dikelola **Emergent**.
+- **Migrasi bertahap ke Railway sedang berjalan — tahap staging saja**
+  (proyek `aneka88voucher-staging`, lihat `docs/RAILWAY_STAGING.md`). Railway
+  memakai database staging sendiri. Jangan pernah menghubungkan Railway ke
+  database produksi, memasang domain aneka88voucher.com, atau mematikan Emergent
+  tanpa instruksi eksplisit pemilik. Semua perubahan harus tetap berjalan di Emergent.
 - Alur: Claude Code → branch pengembangan → Pull Request → (pemilik setuju) →
   merge ke `main` → di terminal Emergent: `bash /app/scripts/emergent_sync.sh`
   → cek Preview → pemilik klik **Re-publish**.
@@ -49,15 +53,23 @@ dalam Bahasa Indonesia.
 ## Struktur
 
 - `backend/server.py` — seluruh API FastAPI (prefix `/api`, port 8001), MongoDB via Motor.
-  Env wajib: `MONGO_URL`, `DB_NAME`, `JWT_SECRET`, `EMERGENT_EMAIL_KEY`,
-  `EMAIL_FROM_NAME`, `OWNER_EMAIL` (opsional: `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `CORS_ORIGINS`).
+  Env wajib: `MONGO_URL`, `DB_NAME`, `JWT_SECRET`. Email: `EMAIL_PROVIDER`,
+  `OWNER_EMAIL`, `EMAIL_FROM_NAME`, dan kunci penyedia (`EMERGENT_EMAIL_KEY` /
+  `RESEND_API_KEY` / `SMTP_*`). Opsional: `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `CORS_ORIGINS`.
 - `frontend/` — React 19 (CRA + CRACO), Tailwind, shadcn/ui, yarn. Memakai
   `REACT_APP_BACKEND_URL`. Halaman di `src/pages/`.
 - `backend/tests/test_*.py` — tes lama buatan Emergent yang memanggil server
   preview sungguhan. **Jangan dijalankan** dari Claude/CI.
 - `backend/tests/ci/` — tes CI terisolasi (MongoDB sementara/tiruan, env palsu).
 - `scripts/emergent_sync.sh` — sinkron aman GitHub → workspace Emergent.
-- `.github/workflows/ci.yml` — CI: tes backend + build frontend.
+- `.github/workflows/ci.yml` — CI: tes backend, tes skrip, build frontend, dan
+  uji end-to-end image Docker Railway (`scripts/railway_smoke_test.sh`).
+- Railway: `backend/Dockerfile` + `backend/railway.json` + `backend/requirements-railway.txt`
+  (versi wajib sama dengan `requirements.txt`), `frontend/Dockerfile` +
+  `frontend/Caddyfile` + `frontend/railway.json`. Skrip Emergent di `index.html`
+  hanya dilewati bila `REACT_APP_DISABLE_EMERGENT_SCRIPTS=true`.
+- Email: `EMAIL_PROVIDER` = emergent (default bila `EMERGENT_EMAIL_KEY` ada) |
+  resend | smtp | disabled.
 
 ## Pengujian sebelum push
 
