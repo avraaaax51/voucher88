@@ -47,8 +47,10 @@ dalam Bahasa Indonesia.
 8. Hindari menambah dependensi. Bila terpaksa, perbarui `requirements.txt` atau
    `package.json` + `yarn.lock`, dan tulis langkah install di PR (skrip sinkron
    tidak meng-install otomatis).
-9. Jangan mengaktifkan restart layanan otomatis di `emergent_sync.sh` sebelum
-   izin `supervisorctl` di Emergent terverifikasi pemilik (`--services`).
+9. `emergent_sync.sh` hanya boleh me-restart `backend` dan `frontend`
+   (`ALLOWED_SERVICES`, lewat `sudo -n supervisorctl`, terverifikasi pemilik
+   2026-10-23). Jangan pernah menambahkan restart/stop untuk `mongodb` atau
+   layanan internal Emergent (`code-server`, `nginx-code-proxy`, `webhook-crond`).
 
 ## Struktur
 

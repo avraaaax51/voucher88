@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# RC, LOGS, CODE_LINES dipakai di dalam ekspresi `check` (lewat eval).
+# RC, LOGS, CODE_LINES, SUP_CALLS dipakai di dalam ekspresi `check` (lewat eval).
 # shellcheck disable=SC2034
 # Pengujian scripts/emergent_sync.sh dengan repository git tiruan.
 # Tidak memakai jaringan luar, database, atau workspace Emergent sungguhan.
@@ -50,6 +50,24 @@ FAKE_YARN="$WORK/fake-yarn"
 printf '#!/bin/sh\nexit "${FAKE_YARN_RC:-0}"\n' > "$FAKE_YARN"
 chmod +x "$FAKE_YARN"
 
+# supervisorctl tiruan: mencatat setiap perintah; hasil restart diatur FAKE_SUP_RC.
+FAKE_SUP="$WORK/fake-supervisorctl"
+SUP_ALL="$WORK/sup-all.log"
+cat > "$FAKE_SUP" <<'SUP'
+#!/bin/sh
+echo "$*" >> "$FAKE_SUP_LOG"
+echo "$*" >> "$FAKE_SUP_ALL"
+case "$1" in
+  status) echo "$2                          RUNNING   pid 1"; exit 0 ;;
+  restart)
+    if [ "${FAKE_SUP_RC:-0}" = 0 ]; then echo "$2: stopped"; echo "$2: started"; exit 0; fi
+    echo "$2: ERROR (spawn error)"; exit "$FAKE_SUP_RC" ;;
+esac
+exit 1
+SUP
+chmod +x "$FAKE_SUP"
+export FAKE_SUP_ALL="$SUP_ALL"
+
 git_q() { git -c user.email=ci@example.invalid -c user.name=ci -c init.defaultBranch=main "$@"; }
 
 setup_repo() {
@@ -76,7 +94,8 @@ setup_repo() {
   APP="$T/app"
   OUT="$T/out.txt"
   set_fake_pkg_version 1.0
-  export FAKE_YARN_RC=0
+  export FAKE_YARN_RC=0 FAKE_SUP_RC=0 FAKE_SUP_LOG="$T/sup.log"
+  : > "$FAKE_SUP_LOG"
 }
 
 upstream() { # upstream <pesan commit> <perintah...>
@@ -87,6 +106,7 @@ upstream() { # upstream <pesan commit> <perintah...>
 run() { # run [args] -> RC, OUT
   APP_DIR="$APP" BACKEND_HEALTH_URL="${BACKEND:-$GOOD_BACKEND}" FRONTEND_HEALTH_URL="${FRONTEND:-$GOOD_FRONTEND}" \
     SYNC_HEALTH_TIMEOUT=1 SYNC_YARN="$FAKE_YARN" SYNC_PYTHON=python3 PYTHONPATH="$SITE" \
+    SYNC_SUPERVISORCTL="$FAKE_SUP" \
     bash "$SCRIPT" "$@" > "$OUT" 2>&1
   RC=$?
   # Kegagalan yang disengaja tidak boleh dilaporkan sebagai error tak terduga.
@@ -94,6 +114,7 @@ run() { # run [args] -> RC, OUT
 }
 
 head_msg() { git -C "$APP" log -1 --format=%s; }
+restarts() { grep '^restart ' "$FAKE_SUP_LOG" | sort | tr '\n' ' ' | sed 's/ $//'; }
 
 # ------------------------------------------------------------------ tests ----
 
@@ -274,8 +295,60 @@ check '[ $RC -eq 2 ]' "opsi tidak dikenal -> exit 2"
 run --check
 check '[ $RC -eq 0 ] && out_has "Tidak ada perubahan baru"' "--check berjalan tanpa mengubah"
 
+echo "# Restart layanan"
+setup_repo t27
+upstream "ubah backend" 'echo "print(2)" > backend/server.py'
+run
+check '[ $RC -eq 0 ] && [ "$(restarts)" = "restart backend" ] && out_has "SIAP DICEK"' "perubahan backend -> hanya backend di-restart"
+
+setup_repo t28
+upstream "ubah frontend" 'echo "{\"name\": \"fe2\"}" > frontend/package.json'
+run
+check '[ $RC -eq 0 ] && [ "$(restarts)" = "restart frontend" ]' "perubahan frontend -> hanya frontend di-restart"
+
+setup_repo t29
+upstream "ubah dokumen" 'echo "catatan" > old.txt'
+run
+check '[ $RC -eq 0 ] && [ -z "$(restarts)" ]' "perubahan di luar backend/frontend -> tidak ada restart"
+
+setup_repo t30
+upstream "ubah backend" 'echo "print(2)" > backend/server.py'
+run --no-restart
+check '[ $RC -eq 0 ] && [ -z "$(restarts)" ] && out_has "Restart dilewati"' "--no-restart -> tidak ada restart"
+
+setup_repo t31
+upstream "ubah backend" 'echo "print(2)" > backend/server.py'
+FAKE_SUP_RC=7 run
+check '[ $RC -eq 3 ] && [ "$(head_msg)" = "ubah backend" ] && out_has "RESTART_FAIL" && out_has "JANGAN Re-publish" && ! out_has "SIAP DICEK"' "restart gagal -> BELUM SIAP, kode tidak di-reset"
+
+setup_repo t32
+upstream "naik versi" 'echo "fakepkg==2.0" > backend/requirements.txt'
+run
+check '[ $RC -eq 3 ] && [ -z "$(restarts)" ] && out_has "Restart ditunda"' "dependensi belum terpasang -> restart ditunda"
+set_fake_pkg_version 2.0
+run
+check '[ $RC -eq 0 ] && [ -z "$(restarts)" ]' "jalankan ulang setelah install: sudah terbaru, tidak restart otomatis (pakai --restart)"
+run --restart
+check '[ $RC -eq 0 ] && [ "$(restarts)" = "restart backend restart frontend" ]' "--restart -> restart backend dan frontend saja"
+
+setup_repo t33
+upstream "rusak" 'echo "def (" > backend/server.py'
+run
+check '[ $RC -eq 1 ] && [ -z "$(restarts)" ]' "cek kode gagal -> tidak ada restart"
+
+setup_repo t34
+upstream v2 'echo "print(2)" > backend/server.py'
+run
+: > "$FAKE_SUP_LOG"
+run --rollback "$(git -C "$APP" rev-parse HEAD~1)"
+check '[ $RC -eq 0 ] && [ "$(restarts)" = "restart backend" ]' "rollback kode backend -> backend di-restart"
+
+check '! grep -qvE "^(status backend|restart backend|restart frontend)$" "$SUP_ALL"' "supervisorctl hanya dipakai untuk status/restart backend & frontend (tidak pernah MongoDB)"
+
 CODE_LINES="$(grep -vE '^[[:space:]]*(#|echo )' "$SCRIPT")"
-check '! grep -qE "supervisorctl[^|]*(restart|start|stop)|systemctl|service [a-z]|(^|[^a-z])mongod([^a-z]|$)|reset --hard|pip install|yarn install|rm -rf" <<<"$CODE_LINES"' "skrip tidak me-restart layanan/MongoDB, tidak install paket, tidak reset --hard"
+SUP_CALLS="$(grep -E 'SUPERVISOR_CMD[^=]|supervisorctl ' <<<"$CODE_LINES" | grep -vE 'status|restart "\$name"|for candidate in|command -v supervisorctl' || true)"
+check '[ -z "$SUP_CALLS" ] && grep -q "ALLOWED_SERVICES=\"backend frontend\"" "$SCRIPT"' "supervisorctl di skrip hanya untuk status dan restart dari daftar izin backend/frontend"
+check '! grep -qE "systemctl|service [a-z]|(^|[^a-z])mongod([^a-z]|$)|reset --hard|pip install|yarn install|rm -rf" <<<"$CODE_LINES"' "skrip tidak menyentuh MongoDB, tidak install paket, tidak reset --hard"
 
 echo
 echo "Hasil: $PASS lulus, $FAIL gagal"

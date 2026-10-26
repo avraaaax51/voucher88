@@ -11,6 +11,8 @@
 #   --services           cek izin supervisorctl (hanya membaca)
 #   --rollback <commit>  kembalikan KODE workspace ke versi tertentu dari main
 #   --confirm-deps       tandai dependensi sudah di-install manual
+#   --restart            restart backend + frontend lalu cek kesehatan
+#   --no-restart         (tambahan untuk mode lain) jangan restart layanan
 #
 # Jaminan:
 #   - hanya fast-forward; tidak pernah merge/rebase/force/reset --hard;
@@ -22,8 +24,12 @@
 #     (tidak menyentuh file tak terlacak);
 #   - cek dependensi dan kesehatan layanan; bila gagal: status BELUM SIAP,
 #     kode TIDAK di-reset;
-#   - tidak me-restart layanan apa pun (termasuk MongoDB), tidak meng-install
-#     paket, tidak menyentuh database atau .env, tidak melakukan Re-publish;
+#   - setelah kode baru lulus cek dan dependensinya cocok, me-restart HANYA
+#     layanan aplikasi yang kodenya berubah (backend dan/atau frontend) lewat
+#     supervisorctl. MongoDB dan layanan internal Emergent tidak pernah disentuh.
+#     Restart gagal => BELUM SIAP, kode tidak di-reset;
+#   - tidak meng-install paket, tidak menyentuh database atau .env, tidak
+#     melakukan Re-publish;
 #   - log di /app/.sync-logs/ dengan token/sandi/connection string disamarkan.
 #
 # Kode keluar: 0 = SIAP DICEK, 1 = berhenti/gagal (lihat pesan),
@@ -31,8 +37,9 @@
 #
 # Variabel opsional: APP_DIR (/app), SYNC_BRANCH (main), SYNC_REMOTE (origin),
 #   BACKEND_HEALTH_URL (http://localhost:8001/api/),
-#   FRONTEND_HEALTH_URL (http://localhost:3000/), SYNC_HEALTH_TIMEOUT (60 detik),
-#   SYNC_PYTHON (python3), SYNC_YARN (yarn).
+#   FRONTEND_HEALTH_URL (http://localhost:3000/), SYNC_HEALTH_TIMEOUT (120 detik),
+#   SYNC_PYTHON (python3), SYNC_YARN (yarn), SYNC_RESTART (1; 0 = jangan restart),
+#   SYNC_SUPERVISORCTL (perintah supervisorctl; default dideteksi otomatis).
 # =============================================================================
 
 # Seluruh isi dibungkus fungsi dan main dipanggil di baris terakhir, supaya bash
@@ -48,19 +55,29 @@ main() {
   UPSTREAM="$REMOTE/$BRANCH"
   BACKEND_URL="${BACKEND_HEALTH_URL:-http://localhost:8001/api/}"
   FRONTEND_URL="${FRONTEND_HEALTH_URL:-http://localhost:3000/}"
-  HEALTH_TIMEOUT="${SYNC_HEALTH_TIMEOUT:-60}"
+  HEALTH_TIMEOUT="${SYNC_HEALTH_TIMEOUT:-120}"
   PYTHON_BIN="${SYNC_PYTHON:-python3}"
   YARN_BIN="${SYNC_YARN:-yarn}"
   LOG_DIR="$APP_DIR/.sync-logs"
   HISTORY="$LOG_DIR/history.tsv"
   DEPS_STATE="$LOG_DIR/deps.state"
   DEP_FILES="backend/requirements.txt frontend/package.json frontend/yarn.lock"
+  # Satu-satunya layanan yang boleh di-restart skrip ini.
+  ALLOWED_SERVICES="backend frontend"
+  RESTART_ENABLED=1
+  [ "${SYNC_RESTART:-1}" = "0" ] && RESTART_ENABLED=0
+
+  local args=() arg
+  for arg in "$@"; do
+    if [ "$arg" = "--no-restart" ]; then RESTART_ENABLED=0; else args+=("$arg"); fi
+  done
+  set -- "${args[@]+"${args[@]}"}"
 
   local mode="${1:-sync}"
   case "$mode" in
     sync|--sync) mode=sync ;;
-    --check|--status|--services|--rollback|--confirm-deps) mode="${mode#--}" ;;
-    -h|--help) sed -n '2,38p' "${BASH_SOURCE[0]}"; return 0 ;;
+    --check|--status|--services|--rollback|--confirm-deps|--restart) mode="${mode#--}" ;;
+    -h|--help) sed -n '2,46p' "${BASH_SOURCE[0]}"; return 0 ;;
     *) echo "Opsi tidak dikenal: $mode (lihat --help)"; return 2 ;;
   esac
 
@@ -87,6 +104,7 @@ main() {
     sync)         do_sync ;;
     rollback)     do_rollback "${2:-}" ;;
     confirm-deps) do_confirm_deps ;;
+    restart)      do_restart ;;
   esac
 }
 
@@ -400,15 +418,88 @@ check_health() {
   fi
 }
 
+# ---------------------------------------------------------------- restart ----
+
+# Layanan yang kodenya berubah antara dua versi (hanya backend/frontend).
+changed_services() { # changed_services <dari> <ke>
+  local changed services=""
+  changed="$(git diff --name-only "$1" "$2")"
+  grep -q '^backend/' <<<"$changed" && services="backend"
+  grep -q '^frontend/' <<<"$changed" && services="${services:+$services }frontend"
+  printf '%s' "$services"
+}
+
+# Menentukan perintah supervisorctl yang benar-benar mengelola layanan aplikasi.
+# Di Emergent, `supervisorctl` tanpa sudo tidak melihat backend/frontend.
+pick_supervisorctl() {
+  if [ -n "${SYNC_SUPERVISORCTL:-}" ]; then
+    SUPERVISOR_CMD="$SYNC_SUPERVISORCTL"
+    return 0
+  fi
+  local candidate
+  for candidate in "sudo -n supervisorctl" "supervisorctl"; do
+    # shellcheck disable=SC2086
+    if $candidate status backend 2>/dev/null | grep -q '^backend[[:space:]]'; then
+      SUPERVISOR_CMD="$candidate"
+      return 0
+    fi
+  done
+  return 1
+}
+
+# Restart layanan dari daftar izin saja. Mengisi RESTART_OK=1/0.
+restart_services() { # restart_services <layanan...>
+  RESTART_OK=1
+  [ "$#" -gt 0 ] || return 0
+  if [ "$RESTART_ENABLED" -ne 1 ]; then
+    echo "Restart dilewati (--no-restart). Restart manual: $*"
+    return 0
+  fi
+  local name output
+  for name in "$@"; do
+    case " $ALLOWED_SERVICES " in
+      *" $name "*) ;;
+      *) echo "DITOLAK: '$name' bukan layanan aplikasi yang boleh di-restart."; RESTART_OK=0; return 0 ;;
+    esac
+  done
+  if ! pick_supervisorctl; then
+    echo "Restart GAGAL: supervisorctl untuk layanan aplikasi tidak ditemukan. Restart lewat Emergent."
+    RESTART_OK=0
+    return 0
+  fi
+  for name in "$@"; do
+    echo "Restart layanan: $name"
+    # shellcheck disable=SC2086
+    if output="$($SUPERVISOR_CMD restart "$name" 2>&1)" && ! grep -qiE 'error|fatal|no such' <<<"$output"; then
+      echo "$output" | sed 's/^/   /'
+    else
+      echo "$output" | sed 's/^/   /'
+      echo "Restart $name GAGAL."
+      RESTART_OK=0
+    fi
+  done
+}
+
 # Ringkasan akhir. Kembali 0 bila siap, 3 bila belum.
-finalize() { # finalize <aksi> <dari>
+finalize() { # finalize <aksi> <dari> [layanan yang perlu di-restart...]
+  local action="$1" from="$2"
+  shift 2
   check_deps
+  RESTART_OK=1
+  if [ "$#" -gt 0 ]; then
+    if [ "$DEPS_OK" -eq 1 ]; then
+      restart_services "$@"
+    else
+      echo "Restart ditunda sampai dependensi terpasang."
+    fi
+  fi
   check_health
   local state=""
   [ "$DEPS_OK" -eq 1 ] || state="DEPS_PENDING"
+  [ "$RESTART_OK" -eq 1 ] || state="${state:+$state+}RESTART_FAIL"
   [ "$HEALTH_OK" -eq 1 ] || state="${state:+$state+}HEALTH_FAIL"
   [ -n "$state" ] || state="OK"
-  record "$1" "$2" "$(short HEAD)" "$state"
+  record "$action" "$from" "$(short HEAD)" "$state"
   echo "------------------------------------------------------------------"
   if [ "$state" = "OK" ]; then
     echo "SIAP DICEK: workspace $(short HEAD); dependensi & layanan OK."
@@ -469,7 +560,10 @@ do_sync() {
   fi
 
   echo "Rollback kode bila perlu: bash $APP_DIR/scripts/emergent_sync.sh --rollback $(short "$before")"
-  finalize sync "$(short "$before")"
+  local services
+  services="$(changed_services "$before" HEAD)"
+  # shellcheck disable=SC2086
+  finalize sync "$(short "$before")" $services
 }
 
 do_rollback() {
@@ -503,7 +597,16 @@ do_rollback() {
   echo "         paket/dependensi yang sudah ter-install TIDAK dikembalikan, dan .env tidak disentuh."
   echo "         File yang tidak dilacak git dibiarkan apa adanya."
   echo "         Sinkron berikutnya akan menarik lagi versi terbaru; untuk membatalkan permanen minta Claude membuat PR revert."
-  finalize rollback "$(short "$before")"
+  local services
+  services="$(changed_services "$before" HEAD)"
+  # shellcheck disable=SC2086
+  finalize rollback "$(short "$before")" $services
+}
+
+do_restart() {
+  RESTART_ENABLED=1
+  # shellcheck disable=SC2086
+  finalize restart "$(short HEAD)" $ALLOWED_SERVICES
 }
 
 do_confirm_deps() {
@@ -528,7 +631,7 @@ do_status() {
 }
 
 do_services() {
-  # Hanya membaca status. Skrip ini tidak pernah menjalankan start/stop/restart.
+  # Hanya membaca status. Restart hanya lewat restart_services (backend/frontend).
   echo "User: $(id -un 2>/dev/null || echo '?')"
   if command -v supervisorctl >/dev/null 2>&1; then
     echo "supervisorctl ditemukan: $(command -v supervisorctl)"
@@ -540,7 +643,11 @@ do_services() {
   else
     echo "supervisorctl tidak ditemukan."
   fi
-  echo "Kirim keluaran ini ke Claude. Restart otomatis belum diaktifkan."
+  if pick_supervisorctl; then
+    echo "Restart otomatis aktif memakai: $SUPERVISOR_CMD (hanya: $ALLOWED_SERVICES)"
+  else
+    echo "Restart otomatis TIDAK bisa dipakai: supervisorctl tidak melihat layanan 'backend'."
+  fi
 }
 
 main "$@"
