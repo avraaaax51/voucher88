@@ -17,7 +17,7 @@ from html.parser import HTMLParser
 from urllib.parse import quote, urlparse
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
-from bson import ObjectId
+from bson import ObjectId, json_util
 import os
 import logging
 import bcrypt
@@ -756,6 +756,101 @@ async def reset_all_data(data: ResetData, admin: dict = Depends(require_role(["a
     await db.counters.delete_many({})
     await db.login_attempts.delete_many({})
     return {"message": "Semua data voucher berhasil dihapus", "vouchers_deleted": v.deleted_count, "redemptions_deleted": r.deleted_count}
+
+# ==================== BACKUP & PEMULIHAN (pindah data) ====================
+# Backup: Super Admin mengunduh seluruh data (JSON, tipe MongoDB dipertahankan).
+# Pemulihan: hanya bila server disetel ALLOW_RESTORE=true DAN database masih baru
+# (belum ada voucher/riwayat, maksimal 1 user hasil seed), dan hanya sekali.
+BACKUP_FORMAT = "voucher88-backup"
+BACKUP_SKIP_COLLECTIONS = {"login_attempts"}
+RESTORE_SKIP_COLLECTIONS = BACKUP_SKIP_COLLECTIONS | {"migration_meta"}
+RESTORE_CONFIRM = "PULIHKAN"
+ALLOW_RESTORE = os.environ.get("ALLOW_RESTORE", "").strip().lower() == "true"
+
+async def restore_blockers() -> list:
+    reasons = []
+    if not ALLOW_RESTORE:
+        reasons.append("Pemulihan tidak diaktifkan di server ini (ALLOW_RESTORE)")
+    if await db.migration_meta.find_one({"_id": "restore"}):
+        reasons.append("Pemulihan sudah pernah dilakukan di database ini")
+    if await db.vouchers.count_documents({}) > 0:
+        reasons.append("Database sudah berisi voucher")
+    if await db.redemption_logs.count_documents({}) > 0:
+        reasons.append("Database sudah berisi riwayat penukaran")
+    if await db.users.count_documents({}) > 1:
+        reasons.append("Database sudah berisi lebih dari satu user")
+    return reasons
+
+@api_router.get("/admin/backup")
+async def download_backup(user: dict = Depends(require_role(["superadmin"]))):
+    collections = {}
+    for name in sorted(await db.list_collection_names()):
+        if name in BACKUP_SKIP_COLLECTIONS or name.startswith("system."):
+            continue
+        collections[name] = await db[name].find({}).to_list(None)
+    now = datetime.now(timezone.utc)
+    counts = {name: len(docs) for name, docs in collections.items()}
+    payload = {"format": BACKUP_FORMAT, "version": 1, "created_at": now.isoformat(), "counts": counts, "collections": collections}
+    body = json_util.dumps(payload, json_options=json_util.CANONICAL_JSON_OPTIONS)
+    logging.info("Backup data diunduh oleh %s: %s", user["name"], counts)
+    return Response(
+        content=body,
+        media_type="application/json",
+        headers={"Content-Disposition": f'attachment; filename="voucher88-backup-{now:%Y%m%d-%H%M%S}.json"'},
+    )
+
+@api_router.get("/admin/restore-status")
+async def restore_status(user: dict = Depends(require_role(["superadmin"]))):
+    reasons = await restore_blockers()
+    return {"allowed": not reasons, "reasons": reasons}
+
+@api_router.post("/admin/restore")
+async def restore_backup(request: Request, confirm: str = "", user: dict = Depends(require_role(["superadmin"]))):
+    if confirm != RESTORE_CONFIRM:
+        raise HTTPException(status_code=400, detail=f'Konfirmasi harus "{RESTORE_CONFIRM}"')
+    reasons = await restore_blockers()
+    if reasons:
+        raise HTTPException(status_code=409, detail="; ".join(reasons))
+    try:
+        payload = json_util.loads(await request.body())
+    except Exception:
+        raise HTTPException(status_code=400, detail="File backup tidak valid (bukan JSON)")
+    if not isinstance(payload, dict):
+        raise HTTPException(status_code=400, detail="File ini bukan backup Voucher88 yang dikenali")
+    collections = payload.get("collections")
+    if payload.get("format") != BACKUP_FORMAT or payload.get("version") != 1 or not isinstance(collections, dict):
+        raise HTTPException(status_code=400, detail="File ini bukan backup Voucher88 yang dikenali")
+    if not all(isinstance(docs, list) for docs in collections.values()):
+        raise HTTPException(status_code=400, detail="Isi backup rusak")
+    if not any(u.get("role") == "superadmin" for u in collections.get("users", [])):
+        raise HTTPException(status_code=400, detail="Backup tidak berisi akun Super Admin")
+
+    targets = [name for name in collections if name not in RESTORE_SKIP_COLLECTIONS and not name.startswith("system.")]
+    # Data hasil seed di database baru diganti seluruhnya oleh isi backup.
+    for name in ("users", "settings", "counters"):
+        await db[name].delete_many({})
+    inserted = {}
+    try:
+        for name in targets:
+            docs = collections[name]
+            if docs:
+                await db[name].insert_many(docs, ordered=True)
+            inserted[name] = len(docs)
+    except Exception as error:
+        logging.error("Pemulihan gagal, membersihkan data sebagian: %s", type(error).__name__)
+        for name in targets:
+            await db[name].delete_many({})
+        await seed_admin()
+        raise HTTPException(status_code=500, detail="Pemulihan gagal; database dikembalikan ke kondisi baru")
+    await db.migration_meta.insert_one({
+        "_id": "restore",
+        "restored_at": datetime.now(timezone.utc),
+        "restored_by": user["name"],
+        "source_created_at": payload.get("created_at"),
+        "counts": inserted,
+    })
+    logging.info("Pemulihan data selesai oleh %s: %s", user["name"], inserted)
+    return {"message": "Data berhasil dipulihkan. Silakan login ulang dengan akun dari data asal.", "counts": inserted}
 
 # ==================== VOUCHER ROUTES ====================
 
