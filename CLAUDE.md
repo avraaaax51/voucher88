@@ -72,6 +72,9 @@ dalam Bahasa Indonesia.
   hanya dilewati bila `REACT_APP_DISABLE_EMERGENT_SCRIPTS=true`.
 - Email: `EMAIL_PROVIDER` = emergent (default bila `EMERGENT_EMAIL_KEY` ada) |
   resend | smtp | disabled.
+- Pindah data: `GET /api/admin/backup` (Super Admin, hanya baca) dan
+  `POST /api/admin/restore` (hanya bila `ALLOW_RESTORE=true` dan database baru,
+  sekali saja). Jangan pernah mengaktifkan `ALLOW_RESTORE` di Emergent/produksi.
 
 ## Pengujian sebelum push
 

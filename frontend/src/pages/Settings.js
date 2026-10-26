@@ -5,7 +5,8 @@ import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
 import { toast } from "sonner";
-import { Loader2, Save, Store, Bell, Trash2, AlertTriangle, Printer, Download, Plug, Scissors } from "lucide-react";
+import { Loader2, Save, Store, Bell, Trash2, AlertTriangle, Printer, Download, Plug, Scissors, DatabaseBackup, Upload } from "lucide-react";
+import { useAuth } from "../context/AuthContext";
 import { DEFAULT_SETTINGS } from "../hooks/useStoreSettings";
 import { PrintVoucher, PrintPortal } from "../components/PrintVoucher";
 import { printVouchersDirect, agentStatus, renderVoucherCanvas } from "../lib/escpos";
@@ -24,6 +25,8 @@ const FIELDS = [
 const previewVoucher = { code: "PREVIEW001", nominal: 50000, terms: "", qr_code: "", expires_at: new Date(Date.now() + 30 * 86400000).toISOString() };
 
 const Settings = () => {
+  const { user } = useAuth();
+  const isSuperAdmin = user?.role === "superadmin";
   const [form, setForm] = useState(DEFAULT_SETTINGS);
   const [saving, setSaving] = useState(false);
   const [resetConfirm, setResetConfirm] = useState("");
@@ -31,6 +34,19 @@ const Settings = () => {
   const [agentState, setAgentState] = useState(null);
   const [testing, setTesting] = useState(false);
   const [rasterPreview, setRasterPreview] = useState("");
+  const [backingUp, setBackingUp] = useState(false);
+  const [restoreStatus, setRestoreStatus] = useState(null);
+  const [restoreFile, setRestoreFile] = useState(null);
+  const [restoreConfirm, setRestoreConfirm] = useState("");
+  const [restoring, setRestoring] = useState(false);
+
+  useEffect(() => {
+    if (!isSuperAdmin) return;
+    fetch(`${API_URL}/api/admin/restore-status`, { credentials: "include" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then(setRestoreStatus)
+      .catch(() => {});
+  }, [isSuperAdmin]);
 
   useEffect(() => {
     fetch(`${API_URL}/api/settings`, { credentials: "include" })
@@ -143,6 +159,50 @@ const Settings = () => {
       toast.error(err.message);
     } finally {
       setResetting(false);
+    }
+  };
+
+  const handleBackup = async () => {
+    setBackingUp(true);
+    try {
+      const res = await fetch(`${API_URL}/api/admin/backup`, { credentials: "include" });
+      if (!res.ok) throw new Error((await res.json()).detail || "Gagal membuat backup");
+      const blob = await res.blob();
+      const name = (res.headers.get("Content-Disposition") || "").match(/filename="([^"]+)"/)?.[1] || "voucher88-backup.json";
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = name;
+      link.click();
+      URL.revokeObjectURL(url);
+      toast.success("Backup diunduh. Simpan file ini di tempat aman.");
+    } catch (err) {
+      toast.error(err.message);
+    } finally {
+      setBackingUp(false);
+    }
+  };
+
+  const handleRestore = async () => {
+    if (!restoreFile) return;
+    if (!window.confirm("Seluruh data dari file backup akan dimasukkan ke database ini. Lanjutkan?")) return;
+    setRestoring(true);
+    try {
+      const res = await fetch(`${API_URL}/api/admin/restore?confirm=${encodeURIComponent(restoreConfirm)}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: await restoreFile.text(),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.detail || "Gagal memulihkan data");
+      const total = Object.entries(body.counts).map(([k, v]) => `${k}: ${v}`).join(", ");
+      toast.success(`${body.message} (${total})`);
+      setRestoreStatus({ allowed: false, reasons: ["Pemulihan sudah dilakukan"] });
+    } catch (err) {
+      toast.error(err.message);
+    } finally {
+      setRestoring(false);
     }
   };
 
@@ -329,6 +389,37 @@ const Settings = () => {
             </PrintPortal>
           </div>
         </form>
+
+        {isSuperAdmin && (
+          <Card className="border" data-testid="backup-card">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg"><DatabaseBackup className="w-5 h-5" /> Backup & Pindah Data</CardTitle>
+              <CardDescription>Unduh seluruh data (voucher, riwayat, user, pengaturan) dalam satu file. File berisi data pelanggan dan sandi terenkripsi: simpan dengan aman dan jangan dibagikan.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <Button type="button" variant="outline" onClick={handleBackup} disabled={backingUp} data-testid="btn-backup">
+                {backingUp ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Download className="w-4 h-4 mr-2" />}
+                Unduh Backup
+              </Button>
+              {restoreStatus?.allowed && (
+                <div className="rounded-lg border border-amber-600 p-3 space-y-3" data-testid="restore-section">
+                  <p className="text-sm font-bold">Pulihkan dari Backup (hanya untuk database baru)</p>
+                  <Input type="file" accept="application/json,.json" onChange={(e) => setRestoreFile(e.target.files?.[0] || null)} data-testid="input-restore-file" />
+                  <div className="flex flex-col sm:flex-row gap-3 sm:items-end">
+                    <div className="space-y-2 flex-1 max-w-sm">
+                      <Label htmlFor="restore-confirm">Ketik <span className="font-mono font-bold">PULIHKAN</span> untuk konfirmasi</Label>
+                      <Input id="restore-confirm" value={restoreConfirm} onChange={(e) => setRestoreConfirm(e.target.value.toUpperCase())} placeholder="PULIHKAN" data-testid="input-restore-confirm" />
+                    </div>
+                    <Button type="button" onClick={handleRestore} disabled={restoring || !restoreFile || restoreConfirm !== "PULIHKAN"} className="h-10" data-testid="btn-restore">
+                      {restoring ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Upload className="w-4 h-4 mr-2" />}
+                      Pulihkan Data
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         <Card className="border border-red-600" data-testid="danger-zone">
           <CardHeader>

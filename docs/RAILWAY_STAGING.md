@@ -59,6 +59,7 @@ Nilai rahasia **diisi langsung di Railway**, tidak pernah ditulis di repo atau c
 | `ADMIN_EMAIL` | tidak | `admin@example.com` | Info saja |
 | `PORT` | ya | `8001` | Harus sama dengan port di `BACKEND_INTERNAL_URL` |
 | `CORS_ORIGINS` | ya | `https://<domain-frontend>.up.railway.app` | Domain frontend staging (tanpa `/` di akhir) |
+| `ALLOW_RESTORE` | sementara | `true` | Hanya selama memindahkan data (lihat "Memindahkan data dari Emergent"). Hapus variabel ini setelah selesai. **Jangan pernah** diisi di Emergent |
 | `EMAIL_PROVIDER` | ya | `disabled` | Lihat bagian Email. `disabled` = fitur lupa sandi menjawab "belum dikonfigurasi" |
 | `OWNER_EMAIL` | bila email aktif | *(email pemilik)* | Penerima kode reset sandi |
 | `EMAIL_FROM_NAME` | tidak | `Voucher88 Staging` | Nama pengirim |
@@ -112,6 +113,30 @@ Mode `--write` ditolak bila domain berisi `aneka88voucher.com`.
 
 Uji manual yang disarankan di browser: login Admin, buat voucher, cetak tes,
 login kasir di HP, scan QR voucher staging, laporan dan export CSV.
+
+## Memindahkan data dari Emergent
+
+Tanpa akses langsung ke database Emergent, data dipindahkan lewat aplikasi:
+
+1. **Di produksi (aneka88voucher.com)**, login sebagai **Super Admin** →
+   Pengaturan → **Backup & Pindah Data** → **Unduh Backup**. Hanya membaca;
+   tidak mengubah data produksi. Simpan file `voucher88-backup-....json` dengan
+   aman (berisi data pelanggan dan hash sandi).
+2. **Di Railway**, isi `ALLOW_RESTORE=true` pada service `backend`, tunggu
+   redeploy. Database Railway harus masih baru (belum ada voucher).
+3. Buka domain staging → login Super Admin staging (`ADMIN_PASSWORD` staging) →
+   Pengaturan → bagian **Pulihkan dari Backup** → pilih file → ketik
+   `PULIHKAN` → **Pulihkan Data**.
+4. Login ulang memakai akun & sandi **produksi** (semua user ikut pindah).
+5. Hapus variabel `ALLOW_RESTORE` di Railway. Pemulihan juga otomatis terkunci
+   setelah sekali berhasil.
+
+Pengaman: pemulihan ditolak bila `ALLOW_RESTORE` tidak aktif, database sudah
+berisi voucher/riwayat atau lebih dari 1 user, atau pemulihan pernah dilakukan.
+Bila gagal di tengah jalan, data sebagian dihapus dan database kembali baru.
+
+Untuk hari pindah sungguhan, ulangi langkah 1–5 ke database Railway baru
+**setelah** transaksi di Emergent dihentikan, supaya tidak ada data yang tertinggal.
 
 ## Hal penting
 
