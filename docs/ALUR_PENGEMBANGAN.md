@@ -47,7 +47,10 @@ Arti hasilnya:
 | `SIAP DICEK: ... dependensi & layanan OK` | Kode terbaru, dependensi cocok, backend & frontend merespons | Cek Preview, lalu Re-publish |
 | `BELUM SIAP — JANGAN Re-publish` | Kode sudah diperbarui, tetapi dependensi belum terpasang atau layanan tidak merespons | Ikuti petunjuk di atas pesan itu, lalu jalankan skrip lagi |
 | `Dependensi Python/frontend: BELUM TERPASANG` | Ada paket baru | Jalankan perintah install yang ditampilkan, lalu jalankan skrip lagi |
-| `Kesehatan backend/frontend: GAGAL` | Layanan preview tidak merespons dalam 60 detik | Cek/restart Preview lewat Emergent, jalankan skrip lagi. Kode **tidak** di-reset |
+| `Restart layanan: backend/frontend` | Kode backend/frontend berubah, layanannya di-restart otomatis | Tidak ada; tunggu hasil cek kesehatan |
+| `Restart ... GAGAL` / status `RESTART_FAIL` | Layanan gagal di-restart | **Jangan Re-publish**. Coba `--restart`; bila tetap gagal, laporkan ke Claude. Kode **tidak** di-reset |
+| `Restart ditunda sampai dependensi terpasang` | Ada paket baru yang belum di-install | Install paket sesuai petunjuk, lalu `bash /app/scripts/emergent_sync.sh --restart` |
+| `Kesehatan backend/frontend: GAGAL` | Layanan preview tidak merespons dalam 120 detik | Coba `--restart`, lalu jalankan skrip lagi. Kode **tidak** di-reset |
 | `GAGAL: ada file terlacak yang diubah langsung...` | Ada file yang diubah langsung di Emergent | Kirim pesan itu ke Claude. Tidak ada yang diubah |
 | `GAGAL: file lokal berikut akan tertimpa...` | Ada file milik Anda (tidak dilacak git) di lokasi yang akan diisi file dari GitHub | Backup/pindahkan file itu atau tanya Claude. Tidak ada yang diubah |
 | `GAGAL: perubahan berisi file .env` | Ada perubahan file rahasia dari GitHub | Ditolak demi keamanan. Laporkan ke Claude |
@@ -59,7 +62,10 @@ Arti hasilnya:
 Kode keluar (untuk Claude): `0` siap, `1` berhenti/gagal tanpa perubahan atau sudah dikembalikan,
 `2` salah perintah, `3` kode berubah tetapi belum siap.
 
-Skrip ini **tidak** me-restart layanan apa pun (termasuk MongoDB), **tidak**
+Bila kode backend dan/atau frontend berubah, skrip **me-restart hanya layanan
+itu** (`backend`, `frontend`) lewat `sudo -n supervisorctl`, lalu mengecek
+kesehatannya. MongoDB dan layanan internal Emergent (`code-server`,
+`nginx-code-proxy`, `webhook-crond`) **tidak pernah** disentuh. Skrip **tidak**
 meng-install paket, **tidak** menyentuh database atau `.env`, dan **tidak**
 melakukan Re-publish.
 
@@ -69,6 +75,8 @@ Perintah lain:
 bash /app/scripts/emergent_sync.sh --check         # lihat apa yang akan berubah, tanpa mengubah
 bash /app/scripts/emergent_sync.sh --status        # versi sekarang + riwayat sinkron
 bash /app/scripts/emergent_sync.sh --services      # cek izin restart layanan (hanya membaca)
+bash /app/scripts/emergent_sync.sh --restart       # restart backend + frontend lalu cek kesehatan
+bash /app/scripts/emergent_sync.sh --no-restart    # sinkron tanpa restart otomatis
 bash /app/scripts/emergent_sync.sh --confirm-deps  # bila paket sudah di-install tetapi tetap terbaca belum
 ```
 

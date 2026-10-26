@@ -29,7 +29,7 @@ Browser ── https://<domain-staging>.up.railway.app
    *MongoDB*. Database ini baru dan kosong, terpisah total dari database Emergent.
 2. **Backend:** *New* → *GitHub Repo* → `avraaaax51/voucher88`, lalu di *Settings*:
    - Service name: `backend`
-   - Branch: `claude/railway-staging` (sesudah PR di-merge, ganti ke `main`)
+   - Branch: `main`
    - Root Directory: `backend`
    - Config file path: `/backend/railway.json`
    - **Jangan** buat domain publik.
