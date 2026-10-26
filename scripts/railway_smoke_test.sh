@@ -8,7 +8,8 @@
 #       -> juga login, membuat 1 voucher uji, memeriksa tautan QR, lalu menghapusnya.
 #
 # Opsi env: SMOKE_ADMIN_NAME (default Admin), SMOKE_HOST_HEADER (mengirim header
-# Host lain, dipakai CI untuk meniru domain baru).
+# Host lain, dipakai CI untuk meniru domain baru), SMOKE_FORWARDED_PROTO (mengirim
+# X-Forwarded-Proto, dipakai CI untuk meniru proxy depan Railway yang selalu https).
 # Mode --write ditolak untuk domain produksi.
 set -euo pipefail
 
@@ -18,6 +19,7 @@ MODE="${2:-}"
 BASE="${BASE%/}"
 ADMIN_NAME="${SMOKE_ADMIN_NAME:-Admin}"
 HOST_HEADER="${SMOKE_HOST_HEADER:-}"
+FORWARDED_PROTO="${SMOKE_FORWARDED_PROTO:-}"
 PUBLIC_HOST="${HOST_HEADER:-$(printf '%s' "$BASE" | sed -E 's#^[a-z]+://##; s#/.*$##')}"
 
 case "$BASE" in
@@ -37,6 +39,7 @@ req() { # req <method> <path> [data] -> body di $TMP/body, header di $TMP/head, 
   local method="$1" path="$2" data="${3:-}"
   local args=(-sS -o "$TMP/body" -D "$TMP/head" -w '%{http_code}' -X "$method" --max-time 20)
   [ -n "$HOST_HEADER" ] && args+=(-H "Host: $HOST_HEADER")
+  [ -n "$FORWARDED_PROTO" ] && args+=(-H "X-Forwarded-Proto: $FORWARDED_PROTO")
   [ -n "${COOKIE:-}" ] && args+=(-H "Cookie: $COOKIE")
   if [ -n "$data" ]; then
     printf '%s' "$data" > "$TMP/data"

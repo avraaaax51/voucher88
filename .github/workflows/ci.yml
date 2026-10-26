@@ -170,6 +170,8 @@ jobs:
         env:
           SMOKE_ADMIN_PASSWORD: "135790"
           SMOKE_HOST_HEADER: staging.example.invalid
+          # Meniru proxy depan Railway, yang selalu meneruskan X-Forwarded-Proto: https.
+          SMOKE_FORWARDED_PROTO: https
         run: bash scripts/railway_smoke_test.sh http://localhost:8080 --write
 
       - name: Tidak ada CORS terbuka + login tetap berlaku setelah restart
