@@ -1,0 +1,14 @@
+.git
+**/node_modules
+**/build
+**/__pycache__
+**/*.pyc
+**/.env
+**/.env.*
+**/*.env
+backend/tests
+test_reports
+.screenshots
+.emergent
+memory
+.sync-logs

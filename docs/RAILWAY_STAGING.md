@@ -1,8 +1,42 @@
-# Staging Railway — Aneka 88 Voucher
+# Railway — Aneka 88 Voucher
 
-Panduan menjalankan **staging** di Railway (proyek `aneka88voucher-staging`,
-environment `staging`). Produksi tetap di **Emergent** dengan domain
-**aneka88voucher.com**. Tidak ada yang dipindahkan dari produksi.
+Panduan menjalankan aplikasi di Railway (proyek `aneka88voucher-staging`).
+Produksi saat ini masih di **Emergent** (aneka88voucher.com) sampai pemilik
+memutuskan pindah.
+
+## Cara tercepat (disarankan): 1 service + MongoDB, 2 variabel
+
+Frontend dan backend berjalan dalam **satu service**. Railway otomatis membaca
+`/railway.json` dan `deploy/railway.Dockerfile`, jadi tidak ada Root Directory
+atau config path yang perlu diatur.
+
+1. Di proyek Railway: **+ New → Database → MongoDB**.
+2. **+ New → GitHub Repo → `avraaaax51/voucher88`** (branch `main`).
+3. Di service aplikasi itu → **Variables** → tambahkan 2 variabel:
+
+   | Variabel | Nilai |
+   |---|---|
+   | `MONGO_URL` | `${{MongoDB.MONGO_URL}}` (ketik persis, Railway akan mengisinya otomatis) |
+   | `ADMIN_PASSWORD` | 6 angka pilihan Anda: sandi awal akun **Admin** (Super Admin) |
+
+4. **Settings → Networking → Generate Domain** → muncul alamat `*.up.railway.app`.
+5. Tunggu deploy hijau (±3–5 menit), buka alamat itu, login nama **Admin** +
+   sandi di atas.
+
+Yang otomatis (tidak perlu diisi): `PORT`, nama database (`voucher88`), kunci
+login (dibuat sendiri dan disimpan di database), email nonaktif, dan tanpa CORS
+karena semuanya satu domain. Setiap merge ke `main` otomatis ter-deploy ulang.
+
+Bila nama service database Anda bukan `MongoDB`, sesuaikan bagian
+`${{NamaService.MONGO_URL}}`.
+
+Sesudah itu: isi **Pengaturan** (identitas toko & cetak), buat akun kasir, lalu
+**Cetak Tes**. Bagian di bawah ini (2 service + Caddy) adalah cara lama dan
+tidak perlu dipakai bila cara tercepat sudah berjalan.
+
+---
+
+# Cara lama: 2 service (frontend Caddy + backend)
 
 ## Arsitektur
 

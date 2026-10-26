@@ -142,3 +142,56 @@ jobs:
           for c in backend frontend mongo; do
             echo "===== $c"; docker logs "$c" 2>&1 | tail -n 60
           done
+
+  railway-single:
+    name: Railway satu service (Docker end-to-end)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build image satu service (sama seperti Railway, via /railway.json)
+        run: docker build -f deploy/railway.Dockerfile -t v88-app .
+
+      - name: Jalankan MongoDB uji + aplikasi HANYA dengan 2 variabel
+        # Nilai khusus CI. Tidak ada JWT_SECRET/DB_NAME/CORS: harus otomatis.
+        run: |
+          docker network create v88
+          docker run -d --name mongo --network v88 mongo:7
+          docker run -d --name app --network v88 -p 8080:8000 \
+            -e MONGO_URL=mongodb://mongo:27017 -e ADMIN_PASSWORD=135790 v88-app
+          for i in $(seq 1 60); do
+            curl -sf http://localhost:8080/api/ >/dev/null && exit 0
+            sleep 2
+          done
+          echo "Aplikasi tidak siap dalam 120 detik"; exit 1
+
+      - name: Smoke test (login, cookie, QR domain baru)
+        env:
+          SMOKE_ADMIN_PASSWORD: "135790"
+          SMOKE_HOST_HEADER: staging.example.invalid
+          # Meniru proxy depan Railway, yang selalu meneruskan X-Forwarded-Proto: https.
+          SMOKE_FORWARDED_PROTO: https
+        run: bash scripts/railway_smoke_test.sh http://localhost:8080 --write
+
+      - name: Tidak ada CORS terbuka + login tetap berlaku setelah restart
+        run: |
+          if curl -s -D - -o /dev/null -H "Origin: https://evil.example" http://localhost:8080/api/ | grep -qi '^access-control-allow-origin'; then
+            echo "CORS terbuka untuk domain lain"; exit 1
+          fi
+          printf '{"name":"Admin","password":"135790"}' > /tmp/login.json
+          COOKIE="$(curl -s -D - -o /dev/null -H 'Content-Type: application/json' --data-binary @/tmp/login.json http://localhost:8080/api/auth/login \
+            | grep -i '^set-cookie: access_token=' | sed -E 's/^[Ss]et-[Cc]ookie: ([^;]*).*/\1/' | tr -d '\r')"
+          [ -n "$COOKIE" ] || { echo "Login gagal"; exit 1; }
+          docker restart app
+          for i in $(seq 1 60); do curl -sf http://localhost:8080/api/ >/dev/null && break; sleep 2; done
+          CODE="$(curl -s -o /dev/null -w '%{http_code}' -H "Cookie: $COOKIE" http://localhost:8080/api/auth/me)"
+          [ "$CODE" = 200 ] || { echo "Sesi login hilang setelah restart (HTTP $CODE)"; exit 1; }
+          echo "OK: tanpa CORS terbuka, sesi tetap berlaku setelah restart"
+
+      - name: Log container (bila gagal)
+        if: failure()
+        run: |
+          for c in app mongo; do
+            echo "===== $c"; docker logs "$c" 2>&1 | tail -n 60
+          done

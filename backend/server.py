@@ -35,13 +35,35 @@ from contextlib import asynccontextmanager
 # MongoDB connection
 mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url, tz_aware=True)
-db = client[os.environ['DB_NAME']]
+db = client[os.environ.get('DB_NAME') or 'voucher88']
 
 # JWT Config
 JWT_ALGORITHM = "HS256"
 
+# JWT_SECRET dari env (Emergent). Bila tidak diisi (mis. Railway), kunci acak
+# dibuat sekali saat startup dan disimpan di koleksi app_secrets agar tetap sama
+# setelah restart. Koleksi ini tidak ikut backup.
+JWT_SECRET_VALUE = os.environ.get("JWT_SECRET", "")
+
 def get_jwt_secret() -> str:
-    return os.environ["JWT_SECRET"]
+    if not JWT_SECRET_VALUE:
+        raise RuntimeError("JWT secret belum siap")
+    return JWT_SECRET_VALUE
+
+async def ensure_jwt_secret() -> None:
+    global JWT_SECRET_VALUE
+    if JWT_SECRET_VALUE:
+        return
+    doc = await db.app_secrets.find_one({"_id": "jwt"})
+    if not doc:
+        candidate = secrets.token_urlsafe(48)
+        try:
+            await db.app_secrets.insert_one({"_id": "jwt", "value": candidate, "created_at": datetime.now(timezone.utc)})
+        except Exception:
+            pass  # instance lain menyimpan lebih dulu; pakai miliknya
+        doc = await db.app_secrets.find_one({"_id": "jwt"})
+    JWT_SECRET_VALUE = doc["value"]
+    logging.info("JWT secret dibuat/dimuat dari database (JWT_SECRET tidak diisi)")
 
 # Password hashing
 def hash_password(password: str) -> str:
@@ -474,6 +496,7 @@ async def write_test_credentials():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    await ensure_jwt_secret()
     await create_indexes()
     await seed_admin()
     await write_test_credentials()
@@ -495,15 +518,19 @@ async def no_cache_api(request: Request, call_next):
     return response
 
 # CORS (credentials + cookies: "*" must be expressed as a regex so the origin is echoed back)
-_cors = os.environ.get("CORS_ORIGINS", "*").strip()
-_cors_kwargs = {"allow_origin_regex": ".*"} if _cors == "*" else {"allow_origins": [o.strip() for o in _cors.split(",") if o.strip()]}
-app.add_middleware(
-    CORSMiddleware,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-    **_cors_kwargs,
-)
+# Bila frontend disajikan dari server ini (FRONTEND_BUILD_DIR, satu domain) dan
+# CORS_ORIGINS tidak diisi, akses lintas-domain tidak dibuka sama sekali.
+FRONTEND_BUILD_DIR = os.environ.get("FRONTEND_BUILD_DIR", "").strip()
+_cors = os.environ.get("CORS_ORIGINS", "" if FRONTEND_BUILD_DIR else "*").strip()
+if _cors:
+    _cors_kwargs = {"allow_origin_regex": ".*"} if _cors == "*" else {"allow_origins": [o.strip() for o in _cors.split(",") if o.strip()]}
+    app.add_middleware(
+        CORSMiddleware,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+        **_cors_kwargs,
+    )
 
 # Configure logging
 logging.basicConfig(
@@ -762,7 +789,7 @@ async def reset_all_data(data: ResetData, admin: dict = Depends(require_role(["a
 # Pemulihan: hanya bila server disetel ALLOW_RESTORE=true DAN database masih baru
 # (belum ada voucher/riwayat, maksimal 1 user hasil seed), dan hanya sekali.
 BACKUP_FORMAT = "voucher88-backup"
-BACKUP_SKIP_COLLECTIONS = {"login_attempts"}
+BACKUP_SKIP_COLLECTIONS = {"login_attempts", "app_secrets"}
 RESTORE_SKIP_COLLECTIONS = BACKUP_SKIP_COLLECTIONS | {"migration_meta"}
 RESTORE_CONFIRM = "PULIHKAN"
 ALLOW_RESTORE = os.environ.get("ALLOW_RESTORE", "").strip().lower() == "true"
@@ -1295,3 +1322,22 @@ async def root():
 
 # Include router
 app.include_router(api_router)
+
+# ==================== FRONTEND (satu service, mis. Railway) ====================
+def mount_frontend(target_app: FastAPI, build_dir: str) -> None:
+    """Sajikan hasil build React dari server ini; rute non-/api jatuh ke index.html."""
+    root = Path(build_dir).resolve()
+    index = root / "index.html"
+
+    @target_app.get("/{full_path:path}", include_in_schema=False)
+    async def serve_frontend(full_path: str):
+        if full_path == "api" or full_path.startswith("api/"):
+            raise HTTPException(status_code=404, detail="Not Found")
+        candidate = (root / full_path).resolve()
+        if full_path and candidate.is_file() and candidate.is_relative_to(root):
+            cache = "public, max-age=31536000, immutable" if full_path.startswith("static/") else "no-cache"
+            return FileResponse(candidate, headers={"Cache-Control": cache})
+        return FileResponse(index, headers={"Cache-Control": "no-cache"})
+
+if FRONTEND_BUILD_DIR and (Path(FRONTEND_BUILD_DIR) / "index.html").is_file():
+    mount_frontend(app, FRONTEND_BUILD_DIR)

@@ -66,7 +66,12 @@ dalam Bahasa Indonesia.
 - `scripts/emergent_sync.sh` — sinkron aman GitHub → workspace Emergent.
 - `.github/workflows/ci.yml` — CI: tes backend, tes skrip, build frontend, dan
   uji end-to-end image Docker Railway (`scripts/railway_smoke_test.sh`).
-- Railway: `backend/Dockerfile` + `backend/railway.json` + `backend/requirements-railway.txt`
+- Railway (disarankan, 1 service): `/railway.json` → `deploy/railway.Dockerfile`
+  (build React + FastAPI menyajikan frontend lewat `FRONTEND_BUILD_DIR`). Variabel
+  wajib hanya `MONGO_URL` dan `ADMIN_PASSWORD`; `DB_NAME` default `voucher88`,
+  JWT secret dibuat otomatis di koleksi `app_secrets` bila `JWT_SECRET` kosong,
+  tanpa CORS bila `FRONTEND_BUILD_DIR` aktif dan `CORS_ORIGINS` kosong.
+- Railway cara lama (2 service): `backend/Dockerfile` + `backend/railway.json` + `backend/requirements-railway.txt`
   (versi wajib sama dengan `requirements.txt`), `frontend/Dockerfile` +
   `frontend/Caddyfile` + `frontend/railway.json`. Skrip Emergent di `index.html`
   hanya dilewati bila `REACT_APP_DISABLE_EMERGENT_SCRIPTS=true`.
